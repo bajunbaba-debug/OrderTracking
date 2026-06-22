@@ -1,0 +1,38 @@
+.DS_Store
+.codegraph/
+
+# Web 应用
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.env*
+web/src/generated/prisma/
+web/*.tsbuildinfo
+web/next-env.d.ts
+web/.vercel/
+web/coverage/
+web/.pnp
+web/.pnp.*
+web/.yarn/*
+!web/.yarn/patches
+!web/.yarn/plugins
+!web/.yarn/releases
+!web/.yarn/versions
+
+# 本地数据库
+web/prisma/*.db
+web/prisma/*.db-journal
+web/prisma/dev.db*
+web/dev.db
+web/dev.db-journal
+
+# 日志与调试
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 临时/误存文件
+_cgi-bin_*

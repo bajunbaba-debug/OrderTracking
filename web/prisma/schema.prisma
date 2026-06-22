@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ProjectItem {
+  id                    String    @id @default(cuid())
+  sourceRowNumber       Int?
+  type                  String    @default("")
+  typeDetail            String    @default("")
+  contractNo            String    @default("")
+  projectName           String    @default("")
+  model                 String    @default("")
+  quantity              Float?
+  publishDate           DateTime?
+  assignDate            DateTime?
+  designCompleteDate    DateTime?
+  dueDate               DateTime?
+  owner                 String    @default("")
+  estimatedComplexity   Float?
+  solutionOwner         String    @default("")
+  sales                 String    @default("")
+  commonRemark          String    @default("")
+  extraRemark           String    @default("")
+  designStatus          String    @default("incomplete")
+  totalComplexity       Float     @default(0)
+  dueBucket             String    @default("")
+  waitingDays           Int?
+  designCycleDays       Int?
+  parsedModelQuantity   Float?
+  technicalComplexityP1 Float?
+  typeBaselineP10       Float?
+  quantityComplexityP2  Float?
+  comfortBaselineP20    Float     @default(3)
+  p1DeviationRate       Float?
+  p2DeviationRate       Float?
+  riskLevel             String    @default("green")
+  riskTags              String    @default("[]")
+  qualityIssues         String    @default("[]")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Dictionary {
+  id          String  @id @default(cuid())
+  category    String
+  value       String
+  parentValue String  @default("")
+  sortOrder   Int     @default(0)
+  enabled     Boolean @default(true)
+
+  @@unique([category, value, parentValue])
+}
+
+model ImportBatch {
+  id         String   @id @default(cuid())
+  fileName   String
+  importedAt DateTime @default(now())
+  rowCount   Int
+  mode       String
+  note       String   @default("")
+}
+
+model AppConfig {
+  id        String @id @default("default")
+  statsDate String @default("2026-06-18")
+}
