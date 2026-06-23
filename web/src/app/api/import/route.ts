@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertCanWriteApi } from "@/lib/auth/server";
 import { importFromBuffer, importFromFile } from "@/lib/project-service";
 import { DEFAULT_EXCEL_FILE } from "@/lib/paths";
 
 export async function POST(request: NextRequest) {
+  const denied = await assertCanWriteApi();
+  if (denied) return denied;
+
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("multipart/form-data")) {

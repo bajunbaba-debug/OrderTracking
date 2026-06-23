@@ -2,9 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
+import { useAuth } from "@/lib/auth/context";
 import type { ProjectFormValues } from "@/lib/project-form";
 import { parseProjectBody } from "@/lib/project-input";
 import { formatValidationErrors, validateProjectRow } from "@/lib/project-validation";
+
+const INPUT_CLASS =
+  "w-full rounded border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600";
 
 interface DictionaryMap {
   type?: string[];
@@ -43,6 +48,7 @@ function SelectOrInput({
   onChange,
   manageLabel,
   onManage,
+  readOnly = false,
 }: {
   label: string;
   name: keyof ProjectFormValues;
@@ -51,6 +57,7 @@ function SelectOrInput({
   onChange: (name: keyof ProjectFormValues, value: string) => void;
   manageLabel?: string;
   onManage?: () => void;
+  readOnly?: boolean;
 }) {
   const listId = `dict-${name}`;
 
@@ -58,7 +65,7 @@ function SelectOrInput({
     <label className="block">
       <span className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-500">
         <span>{label}</span>
-        {onManage ? (
+        {onManage && !readOnly ? (
           <button type="button" onClick={onManage} className="text-blue-700 hover:underline">
             {manageLabel ?? "管理选项"}
           </button>
@@ -67,8 +74,9 @@ function SelectOrInput({
       <input
         list={options && options.length > 0 ? listId : undefined}
         value={value}
+        disabled={readOnly}
         onChange={(e) => onChange(name, e.target.value)}
-        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        className={INPUT_CLASS}
         placeholder={options && options.length > 0 ? "可选择或手动输入" : undefined}
       />
       {options && options.length > 0 ? (
@@ -87,11 +95,13 @@ function DictionaryManager({
   selectedType,
   onClose,
   onUpdated,
+  readOnly = false,
 }: {
   dict: DictionaryMap;
   selectedType: string;
   onClose: () => void;
   onUpdated: (next: DictionaryMap) => void;
+  readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<"type" | "typeDetail" | "remark">("type");
   const [newValue, setNewValue] = useState("");
@@ -100,6 +110,7 @@ function DictionaryManager({
   const [error, setError] = useState("");
 
   async function addEntry() {
+    if (readOnly) return;
     const value = newValue.trim();
     if (!value) return;
     setBusy(true);
@@ -132,6 +143,7 @@ function DictionaryManager({
   }
 
   async function removeEntry(value: string, parentValue = "") {
+    if (readOnly) return;
     setBusy(true);
     setError("");
     try {
@@ -222,16 +234,19 @@ function DictionaryManager({
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
             placeholder="输入新选项"
-            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+            disabled={readOnly}
+            className={`flex-1 ${INPUT_CLASS}`}
           />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void addEntry()}
-            className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
-          >
-            添加
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void addEntry()}
+              className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+            >
+              添加
+            </button>
+          ) : null}
         </div>
 
         {error ? (
@@ -249,16 +264,18 @@ function DictionaryManager({
           ).map((item) => (
             <li key={item} className="flex items-center justify-between px-3 py-2 text-sm">
               <span>{item}</span>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void removeEntry(item, tab === "typeDetail" ? parentType : "")
-                }
-                className="text-red-600 hover:underline disabled:opacity-50"
-              >
-                删除
-              </button>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void removeEntry(item, tab === "typeDetail" ? parentType : "")
+                  }
+                  className="text-red-600 hover:underline disabled:opacity-50"
+                >
+                  删除
+                </button>
+              ) : null}
             </li>
           ))}
           {(tab === "type"
@@ -275,16 +292,23 @@ function DictionaryManager({
   );
 }
 
+export type ProjectFormReturnTo =
+  | { kind: "projects" }
+  | { kind: "timeline"; owner: string; projectId: string };
+
 export function ProjectForm({
   initial,
   projectId,
   onSuccess,
+  returnTo = { kind: "projects" },
 }: {
   initial?: Partial<ProjectFormValues>;
   projectId?: string;
   onSuccess?: () => void;
+  returnTo?: ProjectFormReturnTo;
 }) {
   const router = useRouter();
+  const { canWrite, isGuest } = useAuth();
   const [form, setForm] = useState<ProjectFormValues>({ ...EMPTY_FORM, ...initial });
   const [dict, setDict] = useState<DictionaryMap>({});
   const [saving, setSaving] = useState(false);
@@ -308,6 +332,7 @@ export function ProjectForm({
   }, [dict, form.type]);
 
   function update(name: keyof ProjectFormValues, value: string) {
+    if (!canWrite) return;
     setForm((prev) => {
       const next = { ...prev, [name]: value };
       if (name === "type") {
@@ -321,8 +346,25 @@ export function ProjectForm({
     if (error) setError("");
   }
 
+  function navigateAfterAction(ownerOverride?: string) {
+    onSuccess?.();
+    if (returnTo.kind === "timeline") {
+      const owner = ownerOverride ?? returnTo.owner;
+      router.push(
+        `/timeline?open=${encodeURIComponent(returnTo.projectId)}&owner=${encodeURIComponent(owner)}`
+      );
+    } else {
+      router.push("/projects");
+    }
+    router.refresh();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canWrite) {
+      setError("游客只读，无法保存");
+      return;
+    }
     setError("");
 
     const row = parseProjectBody(form as unknown as Record<string, unknown>);
@@ -341,14 +383,16 @@ export function ProjectForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; owner?: string };
       if (!res.ok) {
         setError(data.error || "保存失败");
         return;
       }
-      onSuccess?.();
-      router.push("/projects");
-      router.refresh();
+      const savedOwner =
+        returnTo.kind === "timeline" && typeof data.owner === "string" && data.owner.trim()
+          ? data.owner.trim()
+          : undefined;
+      navigateAfterAction(savedOwner);
     } catch {
       setError("保存失败，请稍后重试");
     } finally {
@@ -358,6 +402,9 @@ export function ProjectForm({
 
   return (
     <>
+      {isGuest ? (
+        <GuestReadOnlyBanner message="游客只读，无法新增、编辑项目或管理字典选项。" />
+      ) : null}
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SelectOrInput
@@ -366,7 +413,8 @@ export function ProjectForm({
             value={form.type}
             options={dict.type}
             onChange={update}
-            onManage={() => setDictOpen(true)}
+            readOnly={!canWrite}
+            onManage={canWrite ? () => setDictOpen(true) : undefined}
           />
           <SelectOrInput
             label="类型细化"
@@ -374,18 +422,38 @@ export function ProjectForm({
             value={form.typeDetail}
             options={typeDetailOptions}
             onChange={update}
-            onManage={() => setDictOpen(true)}
+            readOnly={!canWrite}
+            onManage={canWrite ? () => setDictOpen(true) : undefined}
           />
-          <SelectOrInput label="合同号" name="contractNo" value={form.contractNo} onChange={update} />
-          <SelectOrInput label="项目名称" name="projectName" value={form.projectName} onChange={update} />
-          <SelectOrInput label="型号" name="model" value={form.model} onChange={update} />
+          <SelectOrInput
+            label="合同号"
+            name="contractNo"
+            value={form.contractNo}
+            onChange={update}
+            readOnly={!canWrite}
+          />
+          <SelectOrInput
+            label="项目名称"
+            name="projectName"
+            value={form.projectName}
+            onChange={update}
+            readOnly={!canWrite}
+          />
+          <SelectOrInput
+            label="型号"
+            name="model"
+            value={form.model}
+            onChange={update}
+            readOnly={!canWrite}
+          />
           <label className="block">
             <span className="mb-1 block text-xs text-slate-500">数量</span>
             <input
               type="number"
               value={form.quantity}
+              disabled={!canWrite}
               onChange={(e) => update("quantity", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
           <label className="block">
@@ -393,8 +461,9 @@ export function ProjectForm({
             <input
               type="date"
               value={form.publishDate}
+              disabled={!canWrite}
               onChange={(e) => update("publishDate", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
           <label className="block">
@@ -402,8 +471,9 @@ export function ProjectForm({
             <input
               type="date"
               value={form.assignDate}
+              disabled={!canWrite}
               onChange={(e) => update("assignDate", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
           <label className="block">
@@ -411,8 +481,9 @@ export function ProjectForm({
             <input
               type="date"
               value={form.designCompleteDate}
+              disabled={!canWrite}
               onChange={(e) => update("designCompleteDate", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
           <label className="block">
@@ -420,19 +491,28 @@ export function ProjectForm({
             <input
               type="date"
               value={form.dueDate}
+              disabled={!canWrite}
               onChange={(e) => update("dueDate", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
-          <SelectOrInput label="负责人" name="owner" value={form.owner} options={dict.owner} onChange={update} />
+          <SelectOrInput
+            label="负责人"
+            name="owner"
+            value={form.owner}
+            options={dict.owner}
+            onChange={update}
+            readOnly={!canWrite}
+          />
           <label className="block">
             <span className="mb-1 block text-xs text-slate-500">预计(工作日)</span>
             <input
               type="number"
               step="0.1"
               value={form.estimatedComplexity}
+              disabled={!canWrite}
               onChange={(e) => update("estimatedComplexity", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
           <SelectOrInput
@@ -441,22 +521,32 @@ export function ProjectForm({
             value={form.solutionOwner}
             options={dict.solutionOwner}
             onChange={update}
+            readOnly={!canWrite}
           />
-          <SelectOrInput label="销售" name="sales" value={form.sales} options={dict.sales} onChange={update} />
+          <SelectOrInput
+            label="销售"
+            name="sales"
+            value={form.sales}
+            options={dict.sales}
+            onChange={update}
+            readOnly={!canWrite}
+          />
           <SelectOrInput
             label="常用备注"
             name="commonRemark"
             value={form.commonRemark}
             options={dict.remark}
             onChange={update}
-            onManage={() => setDictOpen(true)}
+            readOnly={!canWrite}
+            onManage={canWrite ? () => setDictOpen(true) : undefined}
           />
           <label className="block md:col-span-2">
             <span className="mb-1 block text-xs text-slate-500">额外备注</span>
             <input
               value={form.extraRemark}
+              disabled={!canWrite}
               onChange={(e) => update("extraRemark", e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
             />
           </label>
         </div>
@@ -464,24 +554,26 @@ export function ProjectForm({
           <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         ) : null}
         <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {saving ? "保存中..." : "保存"}
-          </button>
+          {canWrite ? (
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {saving ? "保存中..." : "保存"}
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => navigateAfterAction()}
             className="rounded border border-slate-300 px-4 py-2 text-sm"
           >
-            取消
+            {returnTo.kind === "timeline" ? "返回订单详情" : "返回明细"}
           </button>
         </div>
       </form>
 
-      {dictOpen ? (
+      {dictOpen && canWrite ? (
         <DictionaryManager
           dict={dict}
           selectedType={form.type}
@@ -490,6 +582,7 @@ export function ProjectForm({
             setDict(next);
             loadDict();
           }}
+          readOnly={!canWrite}
         />
       ) : null}
     </>

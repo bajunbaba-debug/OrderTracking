@@ -120,3 +120,86 @@ table tbody tr:hover {
     transition-duration: 1ms;
   }
 }
+
+/* 订单时间流进度条 — 勿在此设置 position，避免覆盖 Tailwind absolute 定位 */
+.timeline-bar {
+  border: 1px solid transparent;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.timeline-bar-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 38%);
+  pointer-events: none;
+}
+
+.timeline-bar-progress-frozen {
+  background: rgb(15 23 42 / 28%);
+}
+
+.timeline-bar:hover {
+  z-index: 15;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 15%);
+}
+
+.timeline-bar-pending {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.timeline-bar-active {
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+}
+
+.timeline-bar-complete {
+  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+}
+
+.timeline-bar-priority {
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+}
+
+.timeline-bar-incident {
+  background: linear-gradient(180deg, #a855f7 0%, #7c3aed 100%);
+  border-style: dashed;
+}
+
+.timeline-bar-delayed {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border: 2px solid #ef4444;
+}
+
+.timeline-bar-frozen {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(59 130 246 / 55%),
+    rgb(59 130 246 / 55%) 4px,
+    rgb(59 130 246 / 30%) 4px,
+    rgb(59 130 246 / 30%) 8px
+  );
+  border: 1px dashed #64748b;
+  color: #1e293b;
+}
+
+.timeline-bar-restarted {
+  box-shadow: inset 0 0 0 2px #eab308;
+}
+
+.timeline-bar-highlight {
+  animation: timeline-pulse 1.2s ease-in-out 3;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 45%);
+}
+
+@keyframes timeline-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 45%);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(59 130 246 / 25%);
+  }
+}

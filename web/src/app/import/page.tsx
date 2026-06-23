@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { PageHeader } from "@/components/ui";
+import { useAuth } from "@/lib/auth/context";
 import { formatNumber } from "@/lib/format";
 
 interface PreviewData {
@@ -25,6 +27,7 @@ export default function ImportPage() {
 }
 
 function ImportPageInner() {
+  const { canWrite, isGuest } = useAuth();
   const searchParams = useSearchParams();
   const fromProjects = searchParams.get("from") === "projects";
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -40,6 +43,10 @@ function ImportPageInner() {
   }, []);
 
   async function handleDefaultImport() {
+    if (!canWrite) {
+      setError("游客只读，无法导入");
+      return;
+    }
     if (!window.confirm(IMPORT_CONFIRM_MESSAGE)) return;
 
     setImporting(true);
@@ -62,6 +69,10 @@ function ImportPageInner() {
   }
 
   async function handleFileImport(file: File) {
+    if (!canWrite) {
+      setError("游客只读，无法导入");
+      return;
+    }
     if (!window.confirm(IMPORT_CONFIRM_MESSAGE)) return;
 
     setImporting(true);
@@ -105,6 +116,10 @@ function ImportPageInner() {
         }
       />
 
+      {isGuest ? (
+        <GuestReadOnlyBanner message="游客只读，无法执行 Excel 导入。" />
+      ) : null}
+
       <div className="space-y-6">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           导入策略：清空并重新导入。执行后会删除现有项目明细与字典，再从 Excel 重建。点击导入前会弹出二次确认。原始
@@ -132,8 +147,8 @@ function ImportPageInner() {
           ) : null}
           <button
             onClick={handleDefaultImport}
-            disabled={importing}
-            className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            disabled={importing || !canWrite}
+            className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {importing ? "导入中..." : "导入默认 Excel"}
           </button>
@@ -141,17 +156,21 @@ function ImportPageInner() {
 
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           <h3 className="mb-4 text-sm font-semibold">方式二：上传 Excel 文件</h3>
-          <input
-            type="file"
-            accept=".xlsm,.xlsx,.xls"
-            disabled={importing}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleFileImport(file);
-              e.target.value = "";
-            }}
-            className="text-sm"
-          />
+          {canWrite ? (
+            <input
+              type="file"
+              accept=".xlsm,.xlsx,.xls"
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFileImport(file);
+                e.target.value = "";
+              }}
+              className="text-sm"
+            />
+          ) : (
+            <p className="text-sm text-slate-400">游客无法上传文件导入</p>
+          )}
         </div>
 
         {message ? (

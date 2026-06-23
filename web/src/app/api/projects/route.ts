@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertCanWriteApi } from "@/lib/auth/server";
 import { getAllProjectsSerialized } from "@/lib/analytics";
 import { parseProjectBody } from "@/lib/project-input";
 import { upsertProject } from "@/lib/project-service";
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await assertCanWriteApi();
+  if (denied) return denied;
+
   const body = await request.json();
   const row = parseProjectBody(body);
   const validation = validateProjectRow(row);

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { useAuth } from "@/lib/auth/context";
 import { DESIGN_STATUS_LABELS, DUE_BUCKET_COLORS } from "@/lib/types";
 import { formatDate, formatNumber, todayDateInput } from "@/lib/format";
 
@@ -105,6 +107,7 @@ function MarkCompleteModal({
 }
 
 function ProjectsPageInner() {
+  const { canWrite, isGuest } = useAuth();
   const searchParams = useSearchParams();
   const urlFilters = useMemo(() => parseUrlFilters(searchParams), [searchParams]);
 
@@ -175,12 +178,13 @@ function ProjectsPageInner() {
   const types = [...new Set(items.map((i) => i.type).filter(Boolean))];
 
   async function confirmMarkComplete(date: string) {
-    if (!completeTarget) return;
-    await fetch(`/api/projects/${completeTarget.id}`, {
+    if (!completeTarget || !canWrite) return;
+    const res = await fetch(`/api/projects/${completeTarget.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ designCompleteDate: date }),
     });
+    if (!res.ok) return;
     setCompleteTarget(null);
     setLoadedQuery(null);
   }
@@ -206,19 +210,23 @@ function ProjectsPageInner() {
         description="支持筛选、搜索、新增与编辑。标记设计完成会自动重算风险与状态。"
         extra={qualityButton}
         action={
-          <div className="flex shrink-0 gap-2">
-            <Link
-              href="/import?from=projects"
-              className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              批量导入
-            </Link>
-            <Link href="/projects/new" className="rounded bg-slate-900 px-4 py-2 text-sm text-white">
-              新增明细
-            </Link>
-          </div>
+          canWrite ? (
+            <div className="flex shrink-0 gap-2">
+              <Link
+                href="/import?from=projects"
+                className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                批量导入
+              </Link>
+              <Link href="/projects/new" className="rounded bg-slate-900 px-4 py-2 text-sm text-white">
+                新增明细
+              </Link>
+            </div>
+          ) : undefined
         }
       />
+
+      {isGuest ? <GuestReadOnlyBanner /> : null}
 
       <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
         <input
@@ -340,20 +348,26 @@ function ProjectsPageInner() {
                   <RiskBadge level={item.riskLevel} />
                 </td>
                 <td className={`whitespace-nowrap ${TD}`}>
-                  <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
-                    编辑
-                  </Link>
-                  {item.designStatus === "incomplete" ? (
+                  {canWrite ? (
                     <>
-                      {" · "}
-                      <button
-                        onClick={() => setCompleteTarget(item)}
-                        className="text-sm text-green-700"
-                      >
-                        标记完成
-                      </button>
+                      <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
+                        编辑
+                      </Link>
+                      {item.designStatus === "incomplete" ? (
+                        <>
+                          {" · "}
+                          <button
+                            onClick={() => setCompleteTarget(item)}
+                            className="text-sm text-green-700"
+                          >
+                            标记完成
+                          </button>
+                        </>
+                      ) : null}
                     </>
-                  ) : null}
+                  ) : (
+                    <span className="text-sm text-slate-400">只读</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -361,7 +375,7 @@ function ProjectsPageInner() {
         </TableWrap>
       )}
 
-      {completeTarget ? (
+      {completeTarget && canWrite ? (
         <MarkCompleteModal
           projectName={completeTarget.projectName}
           onConfirm={(date) => void confirmMarkComplete(date)}

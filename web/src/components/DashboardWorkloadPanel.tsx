@@ -74,7 +74,7 @@ export function DashboardWorkloadPanel({
   completedOwnerRanking,
   typeRanking,
 }: DashboardWorkloadPanelProps) {
-  const [active, setActive] = useState<"chart" | "tables">("chart");
+  const [active, setActive] = useState<"chart" | "tables">("tables");
 
   return (
     <section className="mb-6">

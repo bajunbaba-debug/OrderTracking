@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef } from "react";
 import { ContentFadeTransition } from "@/components/ContentFadeTransition";
+import { AuthBar } from "@/components/timeline/AuthBar";
 
 const NAV_ITEMS = [
   { href: "/", label: "总览" },
   { href: "/projects", label: "明细" },
-  { href: "/risks", label: "风险" },
   { href: "/members", label: "分析", match: ["/members", "/contracts", "/types"] },
+  { href: "/timeline", label: "订单时间流", match: ["/timeline", "/risks"] },
 ];
 
 function isNavActive(pathname: string, item: (typeof NAV_ITEMS)[number]) {
@@ -49,15 +50,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     indicator.style.transform = `translateX(${elRect.left - navRect.left}px)`;
   }, [pathname]);
 
+  const isTimeline = pathname.startsWith("/timeline");
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-3">
+        <div className={`mx-auto flex items-center justify-between px-4 py-3 ${isTimeline ? "max-w-none" : "max-w-[1400px] px-6"}`}>
           <div>
             <h1 className="text-base font-semibold text-slate-900">订单项目分析系统</h1>
             <p className="text-xs text-slate-500">本地部署 · 订单项目管理</p>
           </div>
-          <nav ref={navRef} className="main-nav relative inline-flex gap-0.5 rounded-lg bg-slate-100 p-1">
+          <div className="flex items-center gap-4">
+            <AuthBar />
+            <nav ref={navRef} className="main-nav relative inline-flex gap-0.5 rounded-lg bg-slate-100 p-1">
             <span ref={indicatorRef} className="main-nav-indicator" aria-hidden="true" />
             {NAV_ITEMS.map((item, index) => {
               const active = isNavActive(pathname, item);
@@ -79,9 +84,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1400px] px-6 py-6">
+      <main className={isTimeline ? "px-3 py-3" : "mx-auto max-w-[1400px] px-6 py-6"}>
         <ContentFadeTransition>{children}</ContentFadeTransition>
       </main>
     </div>

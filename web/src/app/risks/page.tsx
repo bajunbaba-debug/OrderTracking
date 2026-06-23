@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { useAuth } from "@/lib/auth/context";
 import { RISK_LABELS } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/format";
 
@@ -27,6 +29,7 @@ function formatRiskTag(tag: string): string {
 }
 
 export default function RisksPage() {
+  const { canWrite, isGuest } = useAuth();
   const [items, setItems] = useState<RiskItem[]>([]);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [riskLevel, setRiskLevel] = useState("");
@@ -53,8 +56,15 @@ export default function RisksPage() {
     <>
       <PageHeader
         title="风险清单"
-        description="展示未完成且命中风险规则的项目：超期、7天内、交期缺失、等待过久、字段异常、预计异常。"
+        description="风险汇总已并入「订单时间流」页面底部。此处保留完整明细风险列表供查阅。"
+        action={
+          <Link href="/timeline" className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+            返回订单时间流
+          </Link>
+        }
       />
+
+      {isGuest ? <GuestReadOnlyBanner message="游客只读，无法编辑风险项目。" /> : null}
 
       <div className="mb-4">
         <select
@@ -115,9 +125,13 @@ export default function RisksPage() {
                   {[...item.riskTags, ...item.qualityIssues].map(formatRiskTag).join("、") || "-"}
                 </td>
                 <td className={TD}>
-                  <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
-                    编辑
-                  </Link>
+                  {canWrite ? (
+                    <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
+                      编辑
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-slate-400">只读</span>
+                  )}
                 </td>
               </tr>
             ))}

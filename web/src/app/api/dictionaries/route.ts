@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertCanWriteApi } from "@/lib/auth/server";
 import { prisma } from "@/lib/prisma";
 import { getDictionaries } from "@/lib/analytics";
 
@@ -8,6 +9,9 @@ export async function GET() {
 
 /** 新增或更新字典项 */
 export async function POST(request: NextRequest) {
+  const denied = await assertCanWriteApi();
+  if (denied) return denied;
+
   const body = (await request.json()) as {
     category: string;
     value: string;
@@ -50,6 +54,9 @@ export async function POST(request: NextRequest) {
 
 /** 删除字典项（软删除） */
 export async function DELETE(request: NextRequest) {
+  const denied = await assertCanWriteApi();
+  if (denied) return denied;
+
   const params = request.nextUrl.searchParams;
   const category = params.get("category");
   const value = params.get("value");
