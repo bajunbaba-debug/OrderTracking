@@ -33,7 +33,7 @@ const Timeline3DView = dynamic(
   }
 );
 
-const COMPACT_LABEL = 100;
+const COMPACT_LABEL = 116;
 const COMPACT_ROW_HEIGHT = 52;
 /** 日期段内单层进度带高度（固定，不随订单数增减） */
 const SEGMENT_TRACK_HEIGHT = 60;
