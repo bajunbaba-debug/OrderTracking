@@ -1,19 +1,33 @@
 "use client";
 
-import { useAuth, DEFAULT_ADMIN, DEFAULT_GUEST } from "@/lib/auth/context";
+import { useState } from "react";
+import { useAuth } from "@/lib/auth/context";
 import type { UserRole } from "@/lib/timeline/types";
 
 function roleLabel(role: UserRole): string {
   if (role === "admin") return "管理员";
-  if (role === "guest") return "游客";
   return "普通人员";
 }
 
 export function AuthBar() {
-  const { user, login, logout, members } = useAuth();
+  const { user, login, logout } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    const err = await login(username.trim(), password);
+    if (err) setError(err);
+    else setPassword("");
+    setSubmitting(false);
+  }
 
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2 text-sm">
       {user ? (
         <>
           <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">
@@ -22,39 +36,41 @@ export function AuthBar() {
           </span>
           <button
             type="button"
-            onClick={logout}
+            onClick={() => void logout()}
             className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
           >
             退出
           </button>
         </>
       ) : (
-        <>
-          <select
-            className="rounded border border-slate-300 px-2 py-1 text-xs"
-            defaultValue=""
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) return;
-              if (v === "admin") login(DEFAULT_ADMIN);
-              else if (v === "guest") login(DEFAULT_GUEST);
-              else {
-                const m = members.find((x) => x.name === v);
-                if (m) login(m);
-              }
-              e.target.value = "";
-            }}
+        <form onSubmit={(e) => void handleLogin(e)} className="flex flex-wrap items-center gap-1.5">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="账号"
+            className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
+            aria-label="登录账号"
+            autoComplete="username"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="密码"
+            className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
+            aria-label="密码"
+            autoComplete="current-password"
+          />
+          <button
+            type="submit"
+            disabled={submitting || !username || !password}
+            className="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
           >
-            <option value="">模拟登录</option>
-            <option value="admin">管理员</option>
-            <option value="guest">游客（只读）</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.name}>
-                {m.name}（普通人员）
-              </option>
-            ))}
-          </select>
-        </>
+            登录
+          </button>
+          {error ? <span className="text-xs text-red-600">{error}</span> : null}
+        </form>
       )}
     </div>
   );

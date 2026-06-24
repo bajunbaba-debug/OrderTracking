@@ -157,7 +157,7 @@ export interface TimelineSearchResult {
 /** 同订单号在其他人员名下的处理项次 */
 export type RelatedOrderItem = TimelineSearchResult;
 
-export type UserRole = "admin" | "member" | "guest";
+export type UserRole = "admin" | "member";
 
 export interface AuthUser {
   id: string;

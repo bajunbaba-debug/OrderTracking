@@ -9,6 +9,8 @@ interface WeekItem {
   weekStart: string;
   label: string;
   config: MemberWorkdayConfig;
+  saturdayMixed?: boolean;
+  sundayMixed?: boolean;
 }
 
 interface Props {
@@ -20,25 +22,31 @@ interface Props {
 function WeekDayChip({
   label,
   active,
+  mixed,
   canEdit,
   onToggle,
 }: {
   label: string;
   active: boolean;
+  mixed?: boolean;
   canEdit: boolean;
   onToggle: () => void;
 }) {
   const base =
     "inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[9px] font-medium leading-none";
-  const tone = active ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500";
+  const tone = mixed
+    ? "border border-dashed border-slate-400 bg-slate-50 text-slate-600"
+    : active
+      ? "bg-slate-800 text-white"
+      : "bg-slate-100 text-slate-500";
 
   if (!canEdit) {
     return (
       <span
-        className={`${base} ${tone} ${active ? "" : "opacity-70"}`}
-        title={active ? `${label}工作` : `${label}休息`}
+        className={`${base} ${tone} ${active || mixed ? "" : "opacity-70"}`}
+        title={mixed ? `${label}混合` : active ? `${label}工作` : `${label}休息`}
       >
-        {label}
+        {mixed ? "混" : label}
       </span>
     );
   }
@@ -48,9 +56,15 @@ function WeekDayChip({
       type="button"
       onClick={onToggle}
       className={`${base} ${tone} hover:ring-1 hover:ring-slate-300`}
-      title={active ? "点击设为休息" : "点击设为工作"}
+      title={
+        mixed
+          ? `混合状态，点击统一设为工作`
+          : active
+            ? "点击设为休息"
+            : "点击设为工作"
+      }
     >
-      {label}
+      {mixed ? "混" : label}
     </button>
   );
 }
@@ -66,7 +80,7 @@ function WeekRow({
 }) {
   return (
     <div className="flex max-w-full flex-nowrap items-center gap-1 overflow-x-auto">
-      {weeks.map(({ weekStart, label, config }) => (
+      {weeks.map(({ weekStart, label, config, saturdayMixed, sundayMixed }) => (
         <div
           key={weekStart}
           className="flex shrink-0 items-center gap-0.5 rounded border border-slate-200 bg-white px-1 py-0.5"
@@ -76,14 +90,24 @@ function WeekRow({
           <WeekDayChip
             label="六"
             active={config.saturdayWork}
+            mixed={saturdayMixed}
             canEdit={canEdit}
-            onToggle={() => onChange(weekStart, { saturdayWork: !config.saturdayWork })}
+            onToggle={() =>
+              onChange(weekStart, {
+                saturdayWork: saturdayMixed ? true : !config.saturdayWork,
+              })
+            }
           />
           <WeekDayChip
             label="日"
             active={config.sundayWork}
+            mixed={sundayMixed}
             canEdit={canEdit}
-            onToggle={() => onChange(weekStart, { sundayWork: !config.sundayWork })}
+            onToggle={() =>
+              onChange(weekStart, {
+                sundayWork: sundayMixed ? true : !config.sundayWork,
+              })
+            }
           />
         </div>
       ))}

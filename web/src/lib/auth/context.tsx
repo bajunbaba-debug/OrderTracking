@@ -4,38 +4,25 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { AuthUser, UserRole } from "@/lib/timeline/types";
-import { canWriteRole, syncAuthRoleCookie } from "@/lib/auth/permissions";
+import { canWriteRole } from "@/lib/auth/permissions";
+import { DEFAULT_ADMIN } from "@/lib/auth/constants";
 
-const AUTH_STORAGE_KEY = "order-tracking-auth-v1";
+export { DEFAULT_ADMIN };
 
-export const DEFAULT_ADMIN: AuthUser = {
-  id: "admin",
-  name: "管理员",
-  role: "admin",
-  department: "管理部",
-};
-
-export const DEFAULT_GUEST: AuthUser = {
-  id: "guest",
-  name: "游客",
-  role: "guest",
-  department: "访客",
-};
+const AUTH_CHANGE_EVENT = "order-tracking-auth-change";
 
 interface AuthContextValue {
   user: AuthUser | null;
   isAdmin: boolean;
-  isGuest: boolean;
-  /** 是否允许写入（游客为 false；未登录仍为 true） */
   canWrite: boolean;
-  login: (user: AuthUser) => void;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<string | null>;
+  logout: () => Promise<void>;
   canManageOwner: (owner: string) => boolean;
   members: AuthUser[];
   setMembersFromOwners: (owners: string[]) => void;
@@ -43,38 +30,90 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function loadStoredUser(): AuthUser | null {
+let cachedUser: AuthUser | null | undefined = undefined;
+let fetchPromise: Promise<AuthUser | null> | null = null;
+
+async function fetchSessionUser(): Promise<AuthUser | null> {
+  const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { user: AuthUser | null };
+  return data.user ?? null;
+}
+
+function loadSessionSnapshot(): AuthUser | null {
+  if (cachedUser !== undefined) return cachedUser;
   if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthUser) : null;
-  } catch {
-    return null;
+  if (!fetchPromise) {
+    fetchPromise = fetchSessionUser()
+      .then((user) => {
+        cachedUser = user;
+        return user;
+      })
+      .finally(() => {
+        fetchPromise = null;
+      });
+  }
+  return null;
+}
+
+function subscribeAuthStore(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onCustom = () => {
+    cachedUser = undefined;
+    void fetchSessionUser().then((user) => {
+      cachedUser = user;
+      onStoreChange();
+    });
+  };
+  window.addEventListener(AUTH_CHANGE_EVENT, onCustom);
+  if (cachedUser === undefined) {
+    void fetchSessionUser().then((user) => {
+      cachedUser = user;
+      onStoreChange();
+    });
+  }
+  return () => window.removeEventListener(AUTH_CHANGE_EVENT, onCustom);
+}
+
+function getStoredUserSnapshot(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  if (cachedUser !== undefined) return cachedUser;
+  loadSessionSnapshot();
+  return null;
+}
+
+function emitAuthStoreChange() {
+  cachedUser = undefined;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
-    return loadStoredUser();
-  });
+  const user = useSyncExternalStore(
+    subscribeAuthStore,
+    getStoredUserSnapshot,
+    () => null
+  );
   const [memberUsers, setMemberUsers] = useState<AuthUser[]>([]);
 
-  const login = useCallback((next: AuthUser) => {
-    setUser(next);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(next));
-    syncAuthRoleCookie(next.role);
+  const login = useCallback(async (username: string, password: string) => {
+    const res = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ mode: "password", username, password }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (!res.ok) return data.error ?? "登录失败";
+    emitAuthStoreChange();
+    return null;
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    syncAuthRoleCookie(null);
+  const logout = useCallback(async () => {
+    await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
+    emitAuthStoreChange();
   }, []);
-
-  useEffect(() => {
-    syncAuthRoleCookie(user?.role ?? null);
-  }, [user]);
 
   const setMembersFromOwners = useCallback((owners: string[]) => {
     const unique = [...new Set(owners.filter(Boolean))].sort();
@@ -90,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const canManageOwner = useCallback(
     (owner: string) => {
-      if (!user || user.role === "guest") return false;
+      if (!user) return false;
       if (user.role === "admin") return true;
       return user.name === owner;
     },
@@ -103,7 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAdmin: user?.role === "admin",
-      isGuest: user?.role === "guest",
       canWrite: canWriteRole(user?.role),
       login,
       logout,

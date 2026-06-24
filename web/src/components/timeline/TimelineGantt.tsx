@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useMemo, useRef, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { formatDate, parseDateInput } from "@/lib/format";
 import {
   splitDateRange,
@@ -17,6 +19,18 @@ import {
 import { addCalendarDays, isWorkdayAt, type WorkdayLookup, type MemberWorkdayConfig } from "@/lib/timeline/workdays";
 import type { ScheduledBlock } from "@/lib/timeline/types";
 import { TimelineWeeklyConfig } from "@/components/timeline/TimelineWeeklyConfig";
+
+const Timeline3DView = dynamic(
+  () => import("@/components/timeline/Timeline3DView").then((mod) => mod.Timeline3DView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full min-h-[380px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-500 sm:min-h-[520px]">
+        加载 3D 时间流...
+      </div>
+    ),
+  }
+);
 
 const COMPACT_LABEL = 100;
 const COMPACT_ROW_HEIGHT = 52;
@@ -52,6 +66,12 @@ function blockTitle(block: ScheduledBlock): string {
 }
 
 /** 仅当时间区间重叠时分配轻量 stack，避免变回多泳道布局 */
+function getSliceBarGeometry(stack: number) {
+  const top = SEGMENT_BAR_TOP + stack * 3;
+  const height = SEGMENT_BAR_HEIGHT - stack * 4;
+  return { top, height };
+}
+
 function assignOverlapStack(slices: BlockSegmentSlice[]): Map<string, number> {
   const sorted = [...slices].sort(
     (a, b) => a.dayOffset - b.dayOffset || b.daySpan - a.daySpan
@@ -96,12 +116,25 @@ interface Props {
   selectedBlockId: string | null;
   highlightProjectId: string | null;
   onSelectBlock: (block: ScheduledBlock) => void;
+  onFocusOwner?: (owner: string) => void;
   scrollToOwner: string | null;
   scrollToProjectId: string | null;
   filters: FilterState;
   weeklyWeeks?: { weekStart: string; label: string; config: MemberWorkdayConfig }[];
   canEditWorkday?: boolean;
   onWeekConfigChange?: (weekStart: string, patch: Partial<MemberWorkdayConfig>) => void;
+  overviewWorkdayOwners?: string[];
+  overviewWorkdayOwner?: string;
+  onOverviewWorkdayOwnerChange?: (owner: string) => void;
+  overviewWeeklyWeeks?: {
+    weekStart: string;
+    label: string;
+    config: MemberWorkdayConfig;
+    saturdayMixed?: boolean;
+    sundayMixed?: boolean;
+  }[];
+  canEditOverviewWorkday?: boolean;
+  onOverviewWeekConfigChange?: (weekStart: string, patch: Partial<MemberWorkdayConfig>) => void;
 }
 
 function filterBlocks(blocks: ScheduledBlock[], filters: FilterState) {
@@ -115,6 +148,117 @@ function filterBlocks(blocks: ScheduledBlock[], filters: FilterState) {
     if (filters.statusFilter && b.kind === "order" && b.status !== filters.statusFilter) return false;
     return true;
   });
+}
+
+interface FlowWindow {
+  key: string;
+  top: number;
+  height: number;
+  clipMask: string;
+}
+
+function getSegmentFlowBounds(
+  slices: BlockSegmentSlice[],
+  stackMap: Map<string, number>,
+  segment: DateSegment
+): {
+  startPct: number;
+  endPct: number;
+  windows: FlowWindow[];
+} | null {
+  if (slices.length === 0) return null;
+
+  let minOffset = Infinity;
+  let maxEnd = 0;
+  const windows: FlowWindow[] = [];
+
+  for (const slice of slices) {
+    minOffset = Math.min(minOffset, slice.dayOffset);
+    maxEnd = Math.max(maxEnd, slice.dayOffset + slice.daySpan);
+    const stack = stackMap.get(slice.sliceKey) ?? 0;
+    const { top, height } = getSliceBarGeometry(stack);
+    const start = (slice.dayOffset / segment.dayCount) * 100;
+    const end = ((slice.dayOffset + slice.daySpan) / segment.dayCount) * 100;
+    const clipMask = [
+      "linear-gradient(to right",
+      "transparent 0%",
+      `transparent calc(${start}% + 1px)`,
+      `black calc(${start}% + 1px)`,
+      `black calc(${end}% - 1px)`,
+      `transparent calc(${end}% - 1px)`,
+      "transparent 100%)",
+    ].join(", ");
+    windows.push({ key: slice.sliceKey, top, height, clipMask });
+  }
+
+  const startPct = (minOffset / segment.dayCount) * 100;
+  const endPct = (maxEnd / segment.dayCount) * 100;
+
+  return { startPct, endPct, windows };
+}
+
+function RowFlowArrow({
+  rowIndex,
+  rowCount,
+  windows,
+  flowStartPct,
+  flowEndPct,
+}: {
+  rowIndex: number;
+  rowCount: number;
+  windows: FlowWindow[];
+  flowStartPct: number;
+  flowEndPct: number;
+}) {
+  const slotCount = Math.min(Math.max(rowCount, 1), 10);
+  const animationName = `timeline-row-flow-slot-${slotCount}`;
+  const travelEnd = Math.max(flowStartPct + 4, flowEndPct - 1);
+  return (
+    <>
+      {windows.map((window) => (
+        <div
+          key={window.key}
+          className="timeline-row-flow-track timeline-row-flow-track--expanded"
+          aria-hidden="true"
+          style={{
+            top: window.top,
+            height: window.height,
+            WebkitMaskImage: window.clipMask,
+            maskImage: window.clipMask,
+          }}
+        >
+          <span
+            className="timeline-row-flow-arrow"
+            data-row-count={String(slotCount)}
+            data-row-index={String(rowIndex)}
+            style={
+              {
+                "--row-index": rowIndex,
+                "--row-count": slotCount,
+                "--flow-start-pct": `${flowStartPct}%`,
+                "--flow-end-pct": `${travelEnd}%`,
+                "--flow-arrow-size": `${(window.height * 5) / 3}px`,
+                animationName,
+              } as CSSProperties
+            }
+          >
+            <span className="timeline-row-flow-chevrons">››››</span>
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ownerInitial(owner: string): string {
+  const trimmed = owner.trim();
+  return trimmed ? trimmed.slice(0, 1).toUpperCase() : "?";
+}
+
+function ownerLoadLabel(blocks: ScheduledBlock[]): string {
+  const riskCount = blocks.filter((b) => b.risks.length > 0 || b.isDelayed).length;
+  if (riskCount > 0) return `${riskCount} 风险`;
+  return `${blocks.filter((b) => b.kind === "order").length} 单`;
 }
 
 function SliceBlockButton({
@@ -135,8 +279,7 @@ function SliceBlockButton({
   const { block } = slice;
   const leftPct = (slice.dayOffset / segment.dayCount) * 100;
   const widthPct = (slice.daySpan / segment.dayCount) * 100;
-  const top = SEGMENT_BAR_TOP + stack * 3;
-  const height = SEGMENT_BAR_HEIGHT - stack * 4;
+  const { top, height } = getSliceBarGeometry(stack);
   const showProgress =
     block.kind === "order" &&
     (block.status === "in_progress" || block.isFrozen) &&
@@ -153,7 +296,7 @@ function SliceBlockButton({
       data-segment={segment.index}
       title={blockTitle(block)}
       onClick={() => onSelectBlock(block)}
-      className={`timeline-bar !absolute flex cursor-pointer flex-col justify-center overflow-hidden rounded px-1.5 text-left text-[10px] leading-snug text-white ring-1 ring-white/35 shadow-sm ${blockStyle(block)} ${
+      className={`timeline-bar !absolute z-[1] flex cursor-pointer flex-col justify-center overflow-hidden rounded px-1.5 text-left text-[10px] leading-snug text-white ring-1 ring-white/35 shadow-sm ${blockStyle(block)} ${
         block.isRestarted ? "timeline-bar-restarted" : ""
       } ${selectedBlockId === block.id ? "ring-2 ring-slate-900 ring-offset-1" : ""} ${
         highlightProjectId === block.projectId ? "timeline-bar-highlight" : ""
@@ -165,7 +308,10 @@ function SliceBlockButton({
         width: `calc(${Math.max(widthPct, 100 / segment.dayCount)}% - 2px)`,
         top,
         height,
-        zIndex: 10 + stack,
+        zIndex:
+          selectedBlockId === block.id || highlightProjectId === block.projectId
+            ? 25
+            : 2 + stack,
       }}
     >
       {showProgress ? (
@@ -175,16 +321,17 @@ function SliceBlockButton({
           aria-hidden="true"
         />
       ) : null}
-      <span className="relative z-[1] truncate font-semibold">
+      <span className="timeline-flow-stripes" aria-hidden="true" />
+      <span className="relative z-[4] truncate font-semibold drop-shadow-sm">
         {slice.continuesBefore ? "← " : ""}
         {block.label}
         {slice.continuesAfter ? " →" : ""}
       </span>
-      <span className="relative z-[1] truncate opacity-95">{block.subLabel}</span>
-      <span className="relative z-[1] truncate opacity-90">
+      <span className="relative z-[4] truncate opacity-95 drop-shadow-sm">{block.subLabel}</span>
+      <span className="relative z-[4] truncate opacity-90 drop-shadow-sm">
         {block.typeLabel} · {block.estimatedDays} 工作日
       </span>
-      <span className="relative z-[1] truncate opacity-85">
+      <span className="relative z-[4] truncate opacity-85 drop-shadow-sm">
         {formatDate(block.startDate)} → {formatDate(block.endDate)}
       </span>
     </button>
@@ -198,6 +345,8 @@ function DateSegmentRow({
   selectedBlockId,
   highlightProjectId,
   onSelectBlock,
+  flowRowIndex,
+  flowRowCount,
 }: {
   segment: DateSegment;
   blocks: ScheduledBlock[];
@@ -205,9 +354,15 @@ function DateSegmentRow({
   selectedBlockId: string | null;
   highlightProjectId: string | null;
   onSelectBlock: (block: ScheduledBlock) => void;
+  flowRowIndex: number;
+  flowRowCount: number;
 }) {
   const slices = getBlocksForSegment(blocks, segment);
   const stackMap = useMemo(() => assignOverlapStack(slices), [slices]);
+  const flowBounds = useMemo(
+    () => getSegmentFlowBounds(slices, stackMap, segment),
+    [slices, stackMap, segment]
+  );
 
   const dayLabels = useMemo(() => {
     return Array.from({ length: segment.dayCount }, (_, i) =>
@@ -282,6 +437,15 @@ function DateSegmentRow({
             onSelectBlock={onSelectBlock}
           />
         ))}
+        {flowBounds && flowRowIndex >= 0 ? (
+          <RowFlowArrow
+            rowIndex={flowRowIndex}
+            rowCount={flowRowCount}
+            windows={flowBounds.windows}
+            flowStartPct={flowBounds.startPct}
+            flowEndPct={flowBounds.endPct}
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -351,6 +515,7 @@ function CompactOwnerRow({
   selectedBlockId,
   highlightProjectId,
   onSelectBlock,
+  onFocusOwner,
 }: {
   owner: string;
   blocks: ScheduledBlock[];
@@ -361,6 +526,7 @@ function CompactOwnerRow({
   selectedBlockId: string | null;
   highlightProjectId: string | null;
   onSelectBlock: (block: ScheduledBlock) => void;
+  onFocusOwner?: (owner: string) => void;
 }) {
   const rangeStartDate = parseDateInput(rangeStart)!;
   const chartWidth = totalDays * dayWidth;
@@ -368,10 +534,30 @@ function CompactOwnerRow({
   return (
     <div data-owner={owner} className="flex border-b border-slate-100">
       <div
-        className="sticky left-0 z-10 shrink-0 border-r border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-800"
+        className="sticky left-0 z-10 shrink-0 border-r border-slate-200 bg-white px-2 py-2"
         style={{ width: COMPACT_LABEL }}
       >
-        {owner}
+        <button
+          type="button"
+          onClick={() => onFocusOwner?.(owner)}
+          className="group flex w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-1.5 py-1 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2 active:scale-[0.98]"
+          title={`展开查看 ${owner} 的时间流`}
+        >
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-semibold text-white group-hover:bg-blue-700">
+            {ownerInitial(owner)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[11px] font-semibold text-slate-800 group-hover:text-blue-800">
+              {owner}
+            </span>
+            <span className="block truncate text-[9px] text-slate-400 group-hover:text-blue-500">
+              {ownerLoadLabel(blocks)}
+            </span>
+          </span>
+          <span className="shrink-0 text-xs text-slate-400 group-hover:text-blue-600" aria-hidden="true">
+            ›
+          </span>
+        </button>
       </div>
       <div className="min-w-0 flex-1">
         <div
@@ -417,7 +603,7 @@ function CompactOwnerRow({
                 data-project-id={block.projectId ?? block.id}
                 title={blockTitle(block)}
                 onClick={() => onSelectBlock(block)}
-                className={`timeline-bar !absolute top-1.5 flex h-9 cursor-pointer flex-col justify-center overflow-hidden rounded px-1 text-left text-[10px] text-white ring-1 ring-white/30 shadow-sm ${blockStyle(block)} ${
+                className={`timeline-bar !absolute top-1.5 z-[1] flex h-9 cursor-pointer flex-col justify-center overflow-hidden rounded px-1 text-left text-[10px] text-white ring-1 ring-white/30 shadow-sm ${blockStyle(block)} ${
                   selectedBlockId === block.id ? "ring-2 ring-slate-900 ring-offset-1" : ""
                 } ${highlightProjectId === block.projectId ? "timeline-bar-highlight" : ""}`}
                 style={{ left, width }}
@@ -429,7 +615,8 @@ function CompactOwnerRow({
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className="relative z-[1] truncate font-medium">{displayLabel}</span>
+                <span className="timeline-flow-stripes" aria-hidden="true" />
+                <span className="relative z-[4] truncate font-medium drop-shadow-sm">{displayLabel}</span>
               </button>
             );
           })}
@@ -484,14 +671,22 @@ export function TimelineGantt({
   selectedBlockId,
   highlightProjectId,
   onSelectBlock,
+  onFocusOwner,
   scrollToOwner,
   scrollToProjectId,
   filters,
   weeklyWeeks,
   canEditWorkday = false,
   onWeekConfigChange,
+  overviewWorkdayOwners = [],
+  overviewWorkdayOwner = "",
+  onOverviewWorkdayOwnerChange,
+  overviewWeeklyWeeks,
+  canEditOverviewWorkday = false,
+  onOverviewWeekConfigChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [expandedViewMode, setExpandedViewMode] = useState<"2d" | "3d">("2d");
   const singleOwnerExpanded = expanded && owners.length === 1;
   const owner = singleOwnerExpanded ? owners[0] : null;
 
@@ -529,6 +724,18 @@ export function TimelineGantt({
     return map;
   }, [owners, schedules, filters]);
 
+  const expandedOwnerBlocks = useMemo(
+    () => (singleOwnerExpanded && owner ? (filteredByOwner.get(owner) ?? []) : []),
+    [singleOwnerExpanded, owner, filteredByOwner]
+  );
+
+  const activeFlowSegmentIndexes = useMemo(() => {
+    if (!singleOwnerExpanded || segments.length === 0) return [];
+    return segments
+      .filter((seg) => getBlocksForSegment(expandedOwnerBlocks, seg).length > 0)
+      .map((seg) => seg.index);
+  }, [singleOwnerExpanded, segments, expandedOwnerBlocks]);
+
   if (singleOwnerExpanded && owner) {
     const blocks = filteredByOwner.get(owner) ?? [];
     const lookup = workdayLookups.get(owner)!;
@@ -561,30 +768,71 @@ export function TimelineGantt({
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold leading-tight text-slate-800">{owner}</div>
               <div className="text-[11px] leading-tight text-slate-500">
-                日期轴分 {segments.length} 行 · 每行 {daysPerRow} 天 · 纵向浏览
+                起点 {rangeStart} · 日期轴分 {segments.length} 行 · 每行 {daysPerRow} 天 · 纵向浏览
               </div>
             </div>
-            {weeklyWeeks && weeklyWeeks.length > 0 ? (
-              <TimelineWeeklyConfig
-                weeks={weeklyWeeks}
-                canEdit={canEditWorkday}
-                onChange={onWeekConfigChange ?? (() => {})}
-              />
-            ) : null}
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <div
+                className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs"
+                role="group"
+                aria-label="切换个人时间流视图"
+              >
+                {(["2d", "3d"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setExpandedViewMode(mode)}
+                    className={`rounded px-2.5 py-1 transition-colors ${
+                      expandedViewMode === mode
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                    }`}
+                    aria-pressed={expandedViewMode === mode}
+                  >
+                    {mode === "2d" ? "2D 平面" : "3D 动态"}
+                  </button>
+                ))}
+              </div>
+              {weeklyWeeks && weeklyWeeks.length > 0 ? (
+                <TimelineWeeklyConfig
+                  weeks={weeklyWeeks}
+                  canEdit={canEditWorkday}
+                  onChange={onWeekConfigChange ?? (() => {})}
+                />
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          {segments.map((segment) => (
-            <DateSegmentRow
-              key={segment.index}
-              segment={segment}
-              blocks={blocks}
-              lookup={lookup}
-              selectedBlockId={selectedBlockId}
-              highlightProjectId={highlightProjectId}
-              onSelectBlock={onSelectBlock}
-            />
-          ))}
+          {expandedViewMode === "3d" ? (
+            <div className="h-full p-2">
+              <Timeline3DView
+                blocks={blocks}
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                lookup={lookup}
+                selectedBlockId={selectedBlockId}
+                highlightProjectId={highlightProjectId}
+                onSelectBlock={onSelectBlock}
+              />
+            </div>
+          ) : (
+            <div key={`flow-2d-${owner}`} className="min-h-0 flex-1">
+              {segments.map((segment) => (
+                <DateSegmentRow
+                  key={segment.index}
+                  segment={segment}
+                  blocks={blocks}
+                  lookup={lookup}
+                  selectedBlockId={selectedBlockId}
+                  highlightProjectId={highlightProjectId}
+                  onSelectBlock={onSelectBlock}
+                  flowRowIndex={activeFlowSegmentIndexes.indexOf(segment.index)}
+                  flowRowCount={activeFlowSegmentIndexes.length}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <Legend daysPerRow={daysPerRow} mode="expanded" />
       </div>
@@ -593,8 +841,35 @@ export function TimelineGantt({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
-        全部概览 · 紧凑横向时间流（可横向滚动）
+      <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] text-slate-500">
+            全部概览 · 起点 {rangeStart} · 紧凑横向时间流（可横向滚动）
+          </div>
+          {overviewWeeklyWeeks && overviewWeeklyWeeks.length > 0 ? (
+            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+              <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                配置人员
+                <select
+                  value={overviewWorkdayOwner}
+                  onChange={(e) => onOverviewWorkdayOwnerChange?.(e.target.value)}
+                  className="h-6 rounded border border-slate-200 bg-white px-1.5 text-[10px] text-slate-700"
+                >
+                  {overviewWorkdayOwners.map((o) => (
+                    <option key={o} value={o}>
+                      {o === "__all__" ? "全部人员" : o}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <TimelineWeeklyConfig
+                weeks={overviewWeeklyWeeks}
+                canEdit={canEditOverviewWorkday}
+                onChange={onOverviewWeekConfigChange ?? (() => {})}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
         {owners.length > 0 ? (
@@ -631,6 +906,7 @@ export function TimelineGantt({
               selectedBlockId={selectedBlockId}
               highlightProjectId={highlightProjectId}
               onSelectBlock={onSelectBlock}
+              onFocusOwner={onFocusOwner}
             />
           );
         })}

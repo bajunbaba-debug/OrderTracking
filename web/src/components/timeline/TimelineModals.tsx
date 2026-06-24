@@ -39,13 +39,21 @@ function formatInsertOption(p: TimelineProjectBase): string {
 }
 
 export function PriorityInsertModal({
-  projects,
   owner,
+  defaultProjectId,
+  queueProjects,
+  insertOrderProjects,
+  isQueueHead,
   onConfirm,
   onClose,
 }: {
-  projects: TimelineProjectBase[];
   owner: string;
+  defaultProjectId: string;
+  /** 插入位置列表：完整时间流队列顺序（含末尾冻结项） */
+  queueProjects: TimelineProjectBase[];
+  /** 插单订单列表：排除已冻结，不可由冻结项发起插单 */
+  insertOrderProjects: TimelineProjectBase[];
+  isQueueHead: boolean;
   onConfirm: (data: {
     projectId: string;
     insertBeforeProjectId: string;
@@ -56,42 +64,96 @@ export function PriorityInsertModal({
   }) => void;
   onClose: () => void;
 }) {
-  const ownerProjects = projects.filter(
-    (p) => p.owner === owner && p.designStatus !== "complete"
-  );
-  const [projectId, setProjectId] = useState(ownerProjects[0]?.id ?? "");
-  const [insertBefore, setInsertBefore] = useState(ownerProjects[0]?.id ?? "");
+  const defaultInsertOrderId =
+    insertOrderProjects.find((p) => p.id === defaultProjectId)?.id ??
+    insertOrderProjects[0]?.id ??
+    defaultProjectId;
+  const [projectId, setProjectId] = useState(defaultInsertOrderId);
+  const [insertBefore, setInsertBefore] = useState(queueProjects[0]?.id ?? "");
   const [reason, setReason] = useState("");
   const [freezeCurrent, setFreezeCurrent] = useState(false);
   const [processedTime, setProcessedTime] = useState(0);
   const [notify, setNotify] = useState(true);
 
+  const formatOption = (p: TimelineProjectBase, markCurrent?: boolean) => {
+    const base = formatInsertOption(p);
+    return markCurrent ? `${base}（当前）` : base;
+  };
+  const insertSelf = projectId === insertBefore;
+
   return (
     <ModalShell title="插单" onClose={onClose}>
+      {isQueueHead ? (
+        <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          当前订单已在队首，无法执行插单。
+        </p>
+      ) : null}
       <label className="block text-sm">
         <span className={labelClass}>插单订单</span>
         <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={fieldClass}>
-          {ownerProjects.map((p) => (
+          {insertOrderProjects.map((p) => (
             <option key={p.id} value={p.id}>
-              {formatInsertOption(p)}
+              {formatOption(p, p.id === projectId)}
             </option>
           ))}
         </select>
       </label>
-      <label className="block text-sm">
-        <span className={labelClass}>插入位置（在此订单之前）</span>
-        <select
-          value={insertBefore}
-          onChange={(e) => setInsertBefore(e.target.value)}
-          className={`${fieldClass} min-w-0`}
+      <div className="block text-sm">
+        <span className={labelClass}>插入位置（在此订单之前，按当前队列顺序）</span>
+        <div
+          role="listbox"
+          aria-label="选择插入位置"
+          className="max-h-56 space-y-0.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1"
         >
-          {ownerProjects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {formatInsertOption(p)}
-            </option>
-          ))}
-        </select>
-      </label>
+          {queueProjects.map((p) => {
+            const currentInsertOrder = p.id === projectId;
+            const selectedPosition = p.id === insertBefore;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={selectedPosition}
+                onClick={() => setInsertBefore(p.id)}
+                className={`flex min-h-[26px] w-full items-center gap-1.5 rounded border px-2 py-0.5 text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${
+                  currentInsertOrder
+                    ? "border-amber-300 bg-amber-50 text-amber-950"
+                    : selectedPosition
+                      ? "border-blue-300 bg-blue-50 text-blue-950"
+                      : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <span
+                  className={`h-4 w-0.5 shrink-0 rounded-full ${
+                    currentInsertOrder
+                      ? "bg-amber-500"
+                      : selectedPosition
+                        ? "bg-blue-500"
+                        : "bg-slate-200"
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+                  {formatInsertOption(p)}
+                  {currentInsertOrder ? (
+                    <span className="ml-1.5 inline-flex rounded bg-amber-200 px-1 py-px text-[9px] font-medium text-amber-900">
+                      当前插单订单
+                    </span>
+                  ) : null}
+                  {selectedPosition ? (
+                    <span className="ml-1.5 inline-flex rounded bg-blue-100 px-1 py-px text-[9px] font-medium text-blue-700">
+                      插入位置
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {insertSelf ? (
+          <p className="mt-1 text-xs text-amber-700">不能插入到自身前</p>
+        ) : null}
+      </div>
       <label className="block text-sm">
         <span className={labelClass}>影响人员</span>
         <input value={owner} readOnly className={`${fieldClass} bg-slate-50`} />
@@ -127,6 +189,7 @@ export function PriorityInsertModal({
         </button>
         <button
           type="button"
+          disabled={isQueueHead || !insertBefore || insertSelf}
           onClick={() =>
             onConfirm({
               projectId,
@@ -137,9 +200,77 @@ export function PriorityInsertModal({
               notify,
             })
           }
-          className="rounded bg-orange-600 px-4 py-2 text-sm text-white"
+          className="rounded bg-orange-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           确认插单
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+export function MarkInProgressModal({
+  project,
+  serverToday,
+  onConfirm,
+  onClose,
+}: {
+  project: TimelineProjectBase;
+  serverToday: string;
+  onConfirm: (data: { startDate: string; processedTime: number }) => void;
+  onClose: () => void;
+}) {
+  const [startDate, setStartDate] = useState(serverToday);
+  const [processedTime, setProcessedTime] = useState(0);
+
+  return (
+    <ModalShell title="标记处理中" onClose={onClose}>
+      <p className="text-sm text-slate-600">
+        订单：{project.contractNo} · {project.model}
+      </p>
+      <label className="block text-sm">
+        <span className={labelClass}>开始处理日期</span>
+        <input
+          type="date"
+          required
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className={fieldClass}
+        />
+      </label>
+      <label className="block text-sm">
+        <span className={labelClass}>已处理时间 k（工作日，0.1 步进）</span>
+        <input
+          type="number"
+          min={0}
+          max={project.estimatedDays}
+          step={0.1}
+          value={processedTime}
+          onChange={(e) =>
+            setProcessedTime(
+              roundTimelineTenth(
+                Math.max(0, Math.min(project.estimatedDays, Number(e.target.value)))
+              )
+            )
+          }
+          className={fieldClass}
+        />
+      </label>
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onClose} className="rounded border border-slate-300 px-4 py-2 text-sm">
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onConfirm({
+              startDate,
+              processedTime: roundTimelineTenth(processedTime),
+            })
+          }
+          className="rounded bg-green-700 px-4 py-2 text-sm text-white"
+        >
+          确认标记
         </button>
       </div>
     </ModalShell>

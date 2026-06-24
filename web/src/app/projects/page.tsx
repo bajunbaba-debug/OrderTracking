@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
 import { useAuth } from "@/lib/auth/context";
 import { DESIGN_STATUS_LABELS, DUE_BUCKET_COLORS } from "@/lib/types";
@@ -107,7 +106,7 @@ function MarkCompleteModal({
 }
 
 function ProjectsPageInner() {
-  const { canWrite, isGuest } = useAuth();
+  const { canWrite } = useAuth();
   const searchParams = useSearchParams();
   const urlFilters = useMemo(() => parseUrlFilters(searchParams), [searchParams]);
 
@@ -225,8 +224,6 @@ function ProjectsPageInner() {
           ) : undefined
         }
       />
-
-      {isGuest ? <GuestReadOnlyBanner /> : null}
 
       <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
         <input

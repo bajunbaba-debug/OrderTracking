@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { useAuth } from "@/lib/auth/context";
 import type { ProjectFormValues } from "@/lib/project-form";
 import { parseProjectBody } from "@/lib/project-input";
@@ -308,7 +307,7 @@ export function ProjectForm({
   returnTo?: ProjectFormReturnTo;
 }) {
   const router = useRouter();
-  const { canWrite, isGuest } = useAuth();
+  const { canWrite } = useAuth();
   const [form, setForm] = useState<ProjectFormValues>({ ...EMPTY_FORM, ...initial });
   const [dict, setDict] = useState<DictionaryMap>({});
   const [saving, setSaving] = useState(false);
@@ -362,7 +361,7 @@ export function ProjectForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canWrite) {
-      setError("游客只读，无法保存");
+      setError("当前账号无写入权限，无法保存");
       return;
     }
     setError("");
@@ -402,9 +401,6 @@ export function ProjectForm({
 
   return (
     <>
-      {isGuest ? (
-        <GuestReadOnlyBanner message="游客只读，无法新增、编辑项目或管理字典选项。" />
-      ) : null}
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <SelectOrInput

@@ -47,23 +47,76 @@ function getQueuePosition(
 ): { index: number; total: number } | null {
   const ownerStates = orderStates
     .filter((s) => s.owner === owner && s.status !== "complete")
-    .sort((a, b) => a.queueIndex - b.queueIndex);
+    .sort((a, b) => {
+      const af = a.status === "frozen" ? 1 : 0;
+      const bf = b.status === "frozen" ? 1 : 0;
+      if (af !== bf) return af - bf;
+      return a.queueIndex - b.queueIndex;
+    });
   const idx = ownerStates.findIndex((s) => s.projectId === projectId);
   return idx >= 0 ? { index: idx, total: ownerStates.length } : null;
 }
 
-/** 计算订单有效处理天数（工作日）：剩余 = q + 预计 - k */
+/** 计算订单有效排程天数（工作日） */
 export function effectiveDuration(
   estimatedDays: number,
   state: TimelineOrderState | undefined
 ): number {
   if (!state) return estimatedDays;
-  if (state.status === "frozen" || state.restartExtra > 0 || state.processedTime > 0) {
-    const k = roundTimelineTenth(Math.max(0, Math.min(estimatedDays, state.processedTime)));
+  const k = roundTimelineTenth(Math.max(0, Math.min(estimatedDays, state.processedTime)));
+
+  if (state.status === "in_progress") {
+    return roundTimelineTenth(Math.max(0, estimatedDays - k));
+  }
+  if (state.status === "frozen" || state.restartExtra > 0) {
     const q = roundTimelineTenth(Math.max(0, state.restartExtra));
     return roundTimelineTenth(Math.max(0, q + estimatedDays - k));
   }
   return estimatedDays;
+}
+
+/** 人员活跃队列（不含已完成/已冻结），按 queueIndex 排序 */
+export function getOwnerActiveQueueStates(
+  owner: string,
+  orderStates: TimelineOrderState[]
+): TimelineOrderState[] {
+  return orderStates
+    .filter((s) => s.owner === owner && s.status !== "complete" && s.status !== "frozen")
+    .sort((a, b) => a.queueIndex - b.queueIndex);
+}
+
+/** 时间流展示用队列顺序：活跃项在前，冻结项统一排末尾 */
+export function getOwnerQueueProjects(
+  owner: string,
+  projects: TimelineProjectBase[],
+  orderStates: TimelineOrderState[],
+  options?: { includeFrozen?: boolean }
+): TimelineProjectBase[] {
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+  const includeFrozen = options?.includeFrozen !== false;
+
+  const sorted = orderStates
+    .filter((s) => s.owner === owner && s.status !== "complete")
+    .filter((s) => includeFrozen || s.status !== "frozen")
+    .sort((a, b) => {
+      const af = a.status === "frozen" ? 1 : 0;
+      const bf = b.status === "frozen" ? 1 : 0;
+      if (af !== bf) return af - bf;
+      return a.queueIndex - b.queueIndex;
+    });
+
+  return sorted
+    .map((s) => projectMap.get(s.projectId))
+    .filter((p): p is TimelineProjectBase => Boolean(p));
+}
+
+export function isActiveQueueHead(
+  projectId: string,
+  owner: string,
+  orderStates: TimelineOrderState[]
+): boolean {
+  const active = getOwnerActiveQueueStates(owner, orderStates);
+  return active.length > 0 && active[0].projectId === projectId;
 }
 
 function defaultOrderState(project: TimelineProjectBase, index: number): TimelineOrderState {
@@ -152,21 +205,35 @@ function buildStream(
   const projectMap = new Map(projects.map((p) => [p.id, p]));
   const stateMap = new Map(orderStates.filter((s) => s.owner === owner).map((s) => [s.projectId, s]));
 
-  const entries: StreamEntry[] = [];
+  const activeOrders: StreamEntry[] = [];
+  const frozenOrders: StreamEntry[] = [];
 
   for (const [pid, state] of stateMap) {
     if (state.status === "complete") continue;
     const project = projectMap.get(pid);
     if (!project || project.designStatus === "complete") continue;
-    entries.push({ kind: "order", queueIndex: state.queueIndex, order: project, state });
+    const entry: StreamEntry = { kind: "order", queueIndex: state.queueIndex, order: project, state };
+    if (state.status === "frozen") {
+      frozenOrders.push(entry);
+    } else {
+      activeOrders.push(entry);
+    }
   }
 
+  activeOrders.sort((a, b) => a.queueIndex - b.queueIndex);
+  frozenOrders.sort((a, b) => a.queueIndex - b.queueIndex);
+
+  const activeWithIncidents: StreamEntry[] = [...activeOrders];
   for (const inc of incidents.filter((i) => i.owner === owner)) {
-    entries.push({ kind: "incident", queueIndex: inc.insertBeforeQueueIndex - 0.5, incident: inc });
+    activeWithIncidents.push({
+      kind: "incident",
+      queueIndex: inc.insertBeforeQueueIndex - 0.5,
+      incident: inc,
+    });
   }
+  activeWithIncidents.sort((a, b) => a.queueIndex - b.queueIndex);
 
-  entries.sort((a, b) => a.queueIndex - b.queueIndex);
-  return entries;
+  return [...activeWithIncidents, ...frozenOrders];
 }
 
 function detectOrderRisks(
@@ -195,21 +262,14 @@ export function computeMemberSchedule(
   projects: TimelineProjectBase[],
   orderStates: TimelineOrderState[],
   incidents: TimelineIncident[],
-  statsDateStr: string,
-  memberWorkStarts: Record<string, string>,
+  timelineToday: string,
+  _memberWorkStarts: Record<string, string>,
   workdayLookup: WorkdayLookup
 ): ScheduledBlock[] {
   const stream = buildStream(owner, projects, orderStates, incidents);
   const blocks: ScheduledBlock[] = [];
 
-  const inProgress = orderStates.find(
-    (s) => s.owner === owner && s.status === "in_progress" && s.workStartDate
-  );
-
-  let cursor = alignToWorkday(
-    inProgress?.workStartDate ?? memberWorkStarts[owner] ?? statsDateStr,
-    workdayLookup
-  );
+  let cursor = alignToWorkday(timelineToday, workdayLookup);
 
   for (const entry of stream) {
     if (entry.kind === "incident" && entry.incident) {
@@ -249,7 +309,10 @@ export function computeMemberSchedule(
     let start = cursor;
 
     if (state.status === "in_progress" && state.workStartDate) {
-      start = alignToWorkday(state.workStartDate, workdayLookup);
+      const ws = alignToWorkday(state.workStartDate, workdayLookup);
+      start = ws > cursor ? ws : cursor;
+    } else if (state.status === "frozen") {
+      start = cursor;
     }
 
     const duration = effectiveDuration(estimated, state);
@@ -321,7 +384,7 @@ export function computeMemberSchedule(
 export function computeAllSchedules(
   projects: TimelineProjectBase[],
   persisted: TimelinePersistedState,
-  statsDateStr: string
+  timelineToday: string
 ): Map<string, ScheduledBlock[]> {
   const owners = [...new Set(projects.map((p) => p.owner || "N/A"))].sort();
   const map = new Map<string, ScheduledBlock[]>();
@@ -336,7 +399,7 @@ export function computeAllSchedules(
         projects,
         persisted.orderStates,
         persisted.incidents,
-        statsDateStr,
+        timelineToday,
         persisted.memberWorkStarts,
         lookup
       )
@@ -461,24 +524,25 @@ export function getRelatedOrderItems(
     .sort((a, b) => a.owner.localeCompare(b.owner));
 }
 
-export function getDateRange(schedules: Map<string, ScheduledBlock[]>, statsDate: string): {
+export function getDateRange(
+  schedules: Map<string, ScheduledBlock[]>,
+  timelineStart: string
+): {
   start: string;
   end: string;
   totalDays: number;
 } {
-  let min = statsDate;
-  let max = statsDate;
+  let max = timelineStart;
 
   for (const blocks of schedules.values()) {
     for (const b of blocks) {
-      if (b.startDate < min) min = b.startDate;
       if (b.endDate > max) max = b.endDate;
     }
   }
 
-  const span = Math.max(21, calendarDaysBetween(min, max) + 7);
-  const end = addCalendarDays(min, span - 1);
-  return { start: min, end, totalDays: span };
+  const span = Math.max(21, calendarDaysBetween(timelineStart, max) + 7);
+  const end = addCalendarDays(timelineStart, span - 1);
+  return { start: timelineStart, end, totalDays: span };
 }
 
 export function projectToTimelineBase(p: {

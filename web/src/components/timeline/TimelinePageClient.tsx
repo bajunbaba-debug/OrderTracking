@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
-import { APP_CONFIG } from "@/lib/config";
 import { EmptyState } from "@/components/ui";
 import { TimelineToolbar } from "@/components/timeline/TimelineToolbar";
 import { TimelineGantt } from "@/components/timeline/TimelineGantt";
@@ -12,6 +11,7 @@ import { TimelineRiskFooter } from "@/components/timeline/TimelineRiskFooter";
 import {
   FreezeModal,
   IncidentModal,
+  MarkInProgressModal,
   PriorityInsertModal,
   RestartModal,
 } from "@/components/timeline/TimelineModals";
@@ -20,9 +20,11 @@ import {
   createWorkdayLookup,
   getConfigurableWeeks,
   getDateRange,
+  getOwnerQueueProjects,
   getOwnerWeeklyConfig,
   getRelatedOrderItems,
   initOrderStates,
+  isActiveQueueHead,
   projectToTimelineBase,
   resetToInitialPending,
   roundTimelineTenth,
@@ -37,18 +39,19 @@ import {
   saveZoomLevel,
   type TimelineZoomLevel,
 } from "@/lib/timeline/zoom";
-import type { MemberWorkdayConfig, WorkdayLookup } from "@/lib/timeline/workdays";
+import { ALL_OWNERS_WORKDAY_KEY } from "@/lib/auth/constants";
+import { addCalendarDays, type MemberWorkdayConfig, type WorkdayLookup } from "@/lib/timeline/workdays";
 import type {
   ScheduledBlock,
   TimelinePersistedState,
   TimelineProjectBase,
 } from "@/lib/timeline/types";
 
-type ModalType = "priority" | "freeze" | "restart" | "incident" | null;
+type ModalType = "priority" | "freeze" | "restart" | "incident" | "markInProgress" | null;
 
-export function TimelinePageClient() {
+export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const searchParams = useSearchParams();
-  const { user, isAdmin, isGuest, canManageOwner, setMembersFromOwners } = useAuth();
+  const { user, isAdmin, canManageOwner, setMembersFromOwners } = useAuth();
   const [projects, setProjects] = useState<TimelineProjectBase[]>([]);
   const [persisted, setPersisted] = useState<TimelinePersistedState>(() => loadTimelineState());
   const [loaded, setLoaded] = useState(false);
@@ -73,12 +76,19 @@ export function TimelinePageClient() {
   const [modal, setModal] = useState<ModalType>(null);
   const [toast, setToast] = useState("");
   const [zoomLevel, setZoomLevel] = useState<TimelineZoomLevel>(() => loadZoomLevel());
+  const [overviewWorkdayOwner, setOverviewWorkdayOwner] = useState("");
 
   const zoomPreset = useMemo(() => getZoomPreset(zoomLevel), [zoomLevel]);
 
   const handleZoomChange = useCallback((level: TimelineZoomLevel) => {
     setZoomLevel(level);
     saveZoomLevel(level);
+  }, []);
+
+  const handleFocusOwner = useCallback((owner: string | null) => {
+    setAdminFocusedOwner(owner);
+    setScrollToProjectId(null);
+    setScrollToOwner(owner);
   }, []);
 
   useEffect(() => {
@@ -102,12 +112,12 @@ export function TimelinePageClient() {
   }, [persisted, loaded]);
 
   const focusedOwner = user?.role === "member" ? user.name : adminFocusedOwner;
-  const showOwnerSwitcher = isAdmin || isGuest;
+  const showOwnerSwitcher = isAdmin;
 
-  const statsDate = APP_CONFIG.statsDate;
+  const timelineToday = serverToday;
   const schedules = useMemo(
-    () => computeAllSchedules(projects, persisted, statsDate),
-    [projects, persisted, statsDate]
+    () => computeAllSchedules(projects, persisted, timelineToday),
+    [projects, persisted, timelineToday]
   );
 
   const allOwnersFromData = useMemo(
@@ -147,7 +157,35 @@ export function TimelinePageClient() {
     return owners;
   }, [allOwnersFromData, user, departmentFilter, ownerFilter, focusedOwner]);
 
-  const dateRange = useMemo(() => getDateRange(schedules, statsDate), [schedules, statsDate]);
+  const overviewOwnerOptions = useMemo(() => {
+    let owners = allOwnersFromData;
+    if (user?.role === "member") owners = owners.filter((o) => o === user.name);
+    if (departmentFilter === "管理部") owners = [];
+    if (ownerFilter) owners = owners.filter((o) => o === ownerFilter);
+    return owners;
+  }, [allOwnersFromData, user, departmentFilter, ownerFilter]);
+
+  const overviewWorkdayOwnerSelectOptions = useMemo(() => {
+    if (overviewOwnerOptions.length === 0) return overviewOwnerOptions;
+    return [ALL_OWNERS_WORKDAY_KEY, ...overviewOwnerOptions];
+  }, [overviewOwnerOptions]);
+
+  const configurableOverviewOwners = useMemo(
+    () => overviewOwnerOptions.filter((o) => canManageOwner(o)),
+    [overviewOwnerOptions, canManageOwner]
+  );
+
+  const effectiveOverviewWorkdayOwner = overviewWorkdayOwnerSelectOptions.includes(
+    overviewWorkdayOwner
+  )
+    ? overviewWorkdayOwner
+    : overviewWorkdayOwnerSelectOptions[0] ?? "";
+
+  const chartRangeStart = useMemo(() => addCalendarDays(serverToday, -5), [serverToday]);
+  const dateRange = useMemo(
+    () => getDateRange(schedules, chartRangeStart),
+    [schedules, chartRangeStart]
+  );
 
   const memberSummaries = useMemo(
     () =>
@@ -188,14 +226,62 @@ export function TimelinePageClient() {
     if (!workdayOwner) return [];
     const weekly = persisted.memberWeeklyWorkdayConfig ?? {};
     const legacy = persisted.memberWorkdayConfig ?? {};
-    return getConfigurableWeeks(statsDate, 3).map(({ weekStart, label }) => ({
+    return getConfigurableWeeks(timelineToday, 3).map(({ weekStart, label }) => ({
       weekStart,
       label,
       config: getOwnerWeeklyConfig(workdayOwner, weekStart, weekly, legacy),
     }));
   }, [
     workdayOwner,
-    statsDate,
+    timelineToday,
+    persisted.memberWeeklyWorkdayConfig,
+    persisted.memberWorkdayConfig,
+  ]);
+
+  const overviewWeeklyWeeks = useMemo(() => {
+    const weekly = persisted.memberWeeklyWorkdayConfig ?? {};
+    const legacy = persisted.memberWorkdayConfig ?? {};
+    const weekDefs = getConfigurableWeeks(timelineToday, 3);
+
+    if (effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY) {
+      const owners = overviewOwnerOptions;
+      if (owners.length === 0) return [];
+      return weekDefs.map(({ weekStart, label }) => {
+        const configs = owners.map((o) => getOwnerWeeklyConfig(o, weekStart, weekly, legacy));
+        const satValues = configs.map((c) => c.saturdayWork);
+        const sunValues = configs.map((c) => c.sundayWork);
+        const allSat = satValues.every((v) => v);
+        const noneSat = satValues.every((v) => !v);
+        const allSun = sunValues.every((v) => v);
+        const noneSun = sunValues.every((v) => !v);
+        return {
+          weekStart,
+          label,
+          config: {
+            saturdayWork: allSat,
+            sundayWork: allSun,
+          },
+          saturdayMixed: !allSat && !noneSat,
+          sundayMixed: !allSun && !noneSun,
+        };
+      });
+    }
+
+    if (!effectiveOverviewWorkdayOwner) return [];
+    return weekDefs.map(({ weekStart, label }) => ({
+      weekStart,
+      label,
+      config: getOwnerWeeklyConfig(
+        effectiveOverviewWorkdayOwner,
+        weekStart,
+        weekly,
+        legacy
+      ),
+    }));
+  }, [
+    effectiveOverviewWorkdayOwner,
+    overviewOwnerOptions,
+    timelineToday,
     persisted.memberWeeklyWorkdayConfig,
     persisted.memberWorkdayConfig,
   ]);
@@ -245,10 +331,36 @@ export function TimelinePageClient() {
     if (!selectedBlock?.projectId || selectedBlock.kind !== "order") return null;
     const ownerStates = persisted.orderStates
       .filter((s) => s.owner === selectedBlock.owner && s.status !== "complete")
-      .sort((a, b) => a.queueIndex - b.queueIndex);
+      .sort((a, b) => {
+        const af = a.status === "frozen" ? 1 : 0;
+        const bf = b.status === "frozen" ? 1 : 0;
+        if (af !== bf) return af - bf;
+        return a.queueIndex - b.queueIndex;
+      });
     const idx = ownerStates.findIndex((s) => s.projectId === selectedBlock.projectId);
     return idx >= 0 ? { index: idx, total: ownerStates.length } : null;
   }, [selectedBlock, persisted.orderStates]);
+
+  const isSelectedQueueHead = useMemo(() => {
+    if (!selectedProject) return false;
+    return isActiveQueueHead(selectedProject.id, selectedProject.owner, persisted.orderStates);
+  }, [selectedProject, persisted.orderStates]);
+
+  /** 时间流完整队列顺序（活跃项在前，冻结项在末尾） */
+  const priorityQueueProjects = useMemo(() => {
+    if (!selectedBlock) return [];
+    return getOwnerQueueProjects(selectedBlock.owner, projects, persisted.orderStates);
+  }, [selectedBlock, projects, persisted.orderStates]);
+
+  /** 可发起插单的订单（排除已冻结） */
+  const priorityInsertableProjects = useMemo(() => {
+    const frozenIds = new Set(
+      persisted.orderStates
+        .filter((s) => s.status === "frozen")
+        .map((s) => s.projectId)
+    );
+    return priorityQueueProjects.filter((p) => !frozenIds.has(p.id));
+  }, [priorityQueueProjects, persisted.orderStates]);
 
   const updatePersisted = useCallback(
     (
@@ -259,7 +371,6 @@ export function TimelinePageClient() {
       >
     ) => {
       setPersisted((prev) => {
-        if (user?.role === "guest") return prev;
         let next = updater(prev);
         if (log && user) {
           next = appendLog(next, {
@@ -324,35 +435,81 @@ export function TimelinePageClient() {
     return () => window.clearTimeout(timer);
   }, [loaded, searchParams, handleSearchSelect]);
 
-  const handleWeekConfigChange = (
+  const applyOwnerWeekConfig = (
+    owner: string,
     weekStart: string,
     patch: Partial<MemberWorkdayConfig>
   ) => {
-    if (!workdayOwner || !canManageOwner(workdayOwner)) return;
+    if (!canManageOwner(owner)) return;
     const weekly = persisted.memberWeeklyWorkdayConfig ?? {};
     const legacy = persisted.memberWorkdayConfig ?? {};
-    const current = getOwnerWeeklyConfig(workdayOwner, weekStart, weekly, legacy);
+    const current = getOwnerWeeklyConfig(owner, weekStart, weekly, legacy);
     const next = { ...current, ...patch };
     updatePersisted(
       (prev) => ({
         ...prev,
         memberWeeklyWorkdayConfig: {
           ...(prev.memberWeeklyWorkdayConfig ?? {}),
-          [workdayOwner]: {
-            ...(prev.memberWeeklyWorkdayConfig?.[workdayOwner] ?? {}),
+          [owner]: {
+            ...(prev.memberWeeklyWorkdayConfig?.[owner] ?? {}),
             [weekStart]: next,
           },
         },
       }),
       {
         action: "admin_intervention",
-        before: `${workdayOwner}@${weekStart}`,
+        before: `${owner}@${weekStart}`,
         after: JSON.stringify(next),
         reason: "更新按周周末工作规则",
         affectedCount: 1,
       }
     );
     showToast("本周工作日规则已更新，时间流已重新计算");
+  };
+
+  const handleWeekConfigChange = (
+    weekStart: string,
+    patch: Partial<MemberWorkdayConfig>
+  ) => {
+    if (!workdayOwner) return;
+    applyOwnerWeekConfig(workdayOwner, weekStart, patch);
+  };
+
+  const handleOverviewWeekConfigChange = (
+    weekStart: string,
+    patch: Partial<MemberWorkdayConfig>
+  ) => {
+    if (effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY) {
+      if (configurableOverviewOwners.length === 0) return;
+      const weekly = persisted.memberWeeklyWorkdayConfig ?? {};
+      const legacy = persisted.memberWorkdayConfig ?? {};
+      updatePersisted((prev) => {
+        let nextWeekly = { ...(prev.memberWeeklyWorkdayConfig ?? {}) };
+        for (const owner of configurableOverviewOwners) {
+          if (!canManageOwner(owner)) continue;
+          const current = getOwnerWeeklyConfig(owner, weekStart, weekly, legacy);
+          const next = { ...current, ...patch };
+          nextWeekly = {
+            ...nextWeekly,
+            [owner]: {
+              ...(nextWeekly[owner] ?? {}),
+              [weekStart]: next,
+            },
+          };
+        }
+        return { ...prev, memberWeeklyWorkdayConfig: nextWeekly };
+      }, {
+        action: "admin_intervention",
+        before: `batch@${weekStart}`,
+        after: JSON.stringify(patch),
+        reason: "批量更新按周周末工作规则",
+        affectedCount: configurableOverviewOwners.length,
+      });
+      showToast("已批量更新全部可配置人员的工作日规则，时间流已重新计算");
+      return;
+    }
+    if (!effectiveOverviewWorkdayOwner) return;
+    applyOwnerWeekConfig(effectiveOverviewWorkdayOwner, weekStart, patch);
   };
 
   const reorderOwnerQueue = (
@@ -480,27 +637,34 @@ export function TimelinePageClient() {
       return;
     }
     updatePersisted(
-      (prev) => ({
-        ...prev,
-        orderStates: prev.orderStates.map((s) =>
-          s.projectId === selectedProject.id
-            ? {
-                ...s,
-                status: "frozen",
-                processedTime: roundTimelineTenth(
-                  Math.max(0, Math.min(selectedProject.estimatedDays, data.processedTime))
-                ),
-                restartExtra: 0,
-                frozenAt: new Date().toISOString().slice(0, 10),
-                freezeReason: data.reason,
-                freezeByPriority: data.byPriority,
-                freezeByIncident: data.byIncident,
-                freezeNote: data.note,
-                workStartDate: null,
-              }
-            : s
-        ),
-      }),
+      (prev) => {
+        const ownerStates = prev.orderStates.filter(
+          (s) => s.owner === selectedProject.owner && s.status !== "complete"
+        );
+        const maxIndex = ownerStates.reduce((m, s) => Math.max(m, s.queueIndex), 0);
+        return {
+          ...prev,
+          orderStates: prev.orderStates.map((s) =>
+            s.projectId === selectedProject.id
+              ? {
+                  ...s,
+                  status: "frozen" as const,
+                  queueIndex: maxIndex + 10,
+                  processedTime: roundTimelineTenth(
+                    Math.max(0, Math.min(selectedProject.estimatedDays, data.processedTime))
+                  ),
+                  restartExtra: 0,
+                  frozenAt: new Date().toISOString().slice(0, 10),
+                  freezeReason: data.reason,
+                  freezeByPriority: data.byPriority,
+                  freezeByIncident: data.byIncident,
+                  freezeNote: data.note,
+                  workStartDate: null,
+                }
+              : s
+          ),
+        };
+      },
       {
         action: "freeze",
         before: selectedProject.contractNo,
@@ -575,7 +739,7 @@ export function TimelinePageClient() {
       id: `inc-${Date.now()}`,
       name: data.name,
       owner: selectedBlock.owner,
-      startDate: data.startDate || statsDate,
+      startDate: data.startDate || timelineToday,
       durationDays: data.durationDays,
       affectedOrderIds: data.affectedOrderIds,
       description: data.description,
@@ -700,16 +864,6 @@ export function TimelinePageClient() {
 
   return (
     <div className="flex h-[calc(100vh-88px)] min-h-[600px] flex-col gap-2">
-      {!user ? (
-        <div className="shrink-0 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          请先右上角「模拟登录」。普通人员默认展开本人时间流；管理员/游客可切换人员视图；游客仅可查看。
-        </div>
-      ) : isGuest ? (
-        <div className="shrink-0 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          当前为游客只读模式，无法修改顺序、插单、冻结或周末配置。
-        </div>
-      ) : null}
-
       <div className="shrink-0">
         <TimelineToolbar
           searchInput={searchInput}
@@ -739,7 +893,7 @@ export function TimelinePageClient() {
             user?.role === "member" ? m.owner === user.name : true
           )}
           focusedOwner={focusedOwner}
-          onFocusOwner={setAdminFocusedOwner}
+          onFocusOwner={handleFocusOwner}
           showOwnerSwitcher={showOwnerSwitcher}
           zoomLevel={zoomLevel}
           onZoomLevelChange={handleZoomChange}
@@ -759,6 +913,7 @@ export function TimelinePageClient() {
           selectedBlockId={selectedBlock?.id ?? null}
           highlightProjectId={highlightProjectId}
           onSelectBlock={openBlock}
+          onFocusOwner={handleFocusOwner}
           scrollToOwner={scrollToOwner}
           scrollToProjectId={scrollToProjectId}
           filters={{
@@ -773,6 +928,18 @@ export function TimelinePageClient() {
           weeklyWeeks={showWeeklyInGantt ? weeklyWeeks : undefined}
           canEditWorkday={canEditWorkday}
           onWeekConfigChange={handleWeekConfigChange}
+          overviewWorkdayOwners={overviewWorkdayOwnerSelectOptions}
+          overviewWorkdayOwner={effectiveOverviewWorkdayOwner}
+          onOverviewWorkdayOwnerChange={setOverviewWorkdayOwner}
+          overviewWeeklyWeeks={!expandedView ? overviewWeeklyWeeks : undefined}
+          canEditOverviewWorkday={
+            effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY
+              ? configurableOverviewOwners.length > 0
+              : effectiveOverviewWorkdayOwner
+                ? canManageOwner(effectiveOverviewWorkdayOwner)
+                : false
+          }
+          onOverviewWeekConfigChange={handleOverviewWeekConfigChange}
         />
       </div>
 
@@ -800,10 +967,21 @@ export function TimelinePageClient() {
           selectedBlock?.projectId &&
           reorderOwnerQueue(selectedBlock.owner, selectedBlock.projectId, "top")
         }
-        onSetInProgress={handleSetInProgress}
         onUnmarkInProgress={handleUnmarkInProgress}
         onUpdateProcessedTime={handleUpdateProcessedTime}
-        onOpenPriorityInsert={() => setModal("priority")}
+        onOpenMarkInProgress={() => setModal("markInProgress")}
+        onOpenPriorityInsert={() => {
+          if (isSelectedQueueHead) {
+            showToast("已在队首，无法插单");
+            return;
+          }
+          if (selectedOrderState?.status === "frozen") {
+            showToast("已冻结订单不可插单");
+            return;
+          }
+          setModal("priority");
+        }}
+        isQueueHead={isSelectedQueueHead}
         onOpenFreeze={() => {
           if (selectedOrderState?.status !== "in_progress") {
             showToast("仅正在处理中的订单可冻结");
@@ -860,11 +1038,26 @@ export function TimelinePageClient() {
         </div>
       ) : null}
 
-      {modal === "priority" && selectedBlock ? (
+      {modal === "priority" && selectedBlock && selectedProject ? (
         <PriorityInsertModal
-          projects={projects}
           owner={selectedBlock.owner}
+          defaultProjectId={selectedProject.id}
+          queueProjects={priorityQueueProjects}
+          insertOrderProjects={priorityInsertableProjects}
+          isQueueHead={isSelectedQueueHead}
           onConfirm={handlePriorityInsert}
+          onClose={() => setModal(null)}
+        />
+      ) : null}
+
+      {modal === "markInProgress" && selectedProject ? (
+        <MarkInProgressModal
+          project={selectedProject}
+          serverToday={timelineToday}
+          onConfirm={(data) => {
+            handleSetInProgress(data.startDate, data.processedTime);
+            setModal(null);
+          }}
           onClose={() => setModal(null)}
         />
       ) : null}

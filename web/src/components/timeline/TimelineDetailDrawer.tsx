@@ -30,9 +30,9 @@ interface Props {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onMoveTop: () => void;
-  onSetInProgress: (startDate: string, processedTime: number) => void;
   onUnmarkInProgress: () => void;
   onUpdateProcessedTime: (processedTime: number) => void;
+  onOpenMarkInProgress: () => void;
   onOpenPriorityInsert: () => void;
   onOpenFreeze: () => void;
   onUnfreeze: () => void;
@@ -41,14 +41,7 @@ interface Props {
   onUpdateEstimate: (days: number) => void;
   onSelectRelated: (projectId: string, owner: string) => void;
   queuePosition: { index: number; total: number } | null;
-}
-
-function todayDateStr(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  isQueueHead: boolean;
 }
 
 export function TimelineDetailDrawer({
@@ -64,9 +57,9 @@ export function TimelineDetailDrawer({
   onMoveUp,
   onMoveDown,
   onMoveTop,
-  onSetInProgress,
   onUnmarkInProgress,
   onUpdateProcessedTime,
+  onOpenMarkInProgress,
   onOpenPriorityInsert,
   onOpenFreeze,
   onUnfreeze,
@@ -75,6 +68,7 @@ export function TimelineDetailDrawer({
   onUpdateEstimate,
   onSelectRelated,
   queuePosition,
+  isQueueHead,
 }: Props) {
   const [logsExpanded, setLogsExpanded] = useState(false);
 
@@ -97,7 +91,8 @@ export function TimelineDetailDrawer({
 
   const isInProgress = orderState?.status === "in_progress";
   const isFrozen = orderState?.status === "frozen";
-  const canFreeze = isInProgress;
+  const canFreeze = isInProgress && !isFrozen;
+  const canPriorityInsert = !isFrozen && !isQueueHead;
 
   return (
     <>
@@ -218,25 +213,36 @@ export function TimelineDetailDrawer({
                   max={project?.estimatedDays ?? 999}
                   onSave={onUpdateProcessedTime}
                 />
-              ) : (
-                <MarkInProgress onConfirm={onSetInProgress} maxProcessed={project?.estimatedDays ?? 999} />
-              )}
+              ) : !isFrozen ? (
+                <ActionBtn full onClick={onOpenMarkInProgress} className="border-green-700 bg-green-50 text-green-900">
+                  标记处理中
+                </ActionBtn>
+              ) : null}
               {isInProgress ? (
                 <ActionBtn full onClick={onUnmarkInProgress} className="border-slate-400 bg-slate-50">
                   反标记处理
                 </ActionBtn>
               ) : null}
-              <ActionBtn full onClick={onOpenPriorityInsert} className="border-orange-300 bg-orange-50 text-orange-800">
-                插单
-              </ActionBtn>
               <ActionBtn
                 full
-                disabled={!canFreeze}
-                onClick={onOpenFreeze}
-                title={canFreeze ? undefined : "仅正在处理中的订单可冻结"}
+                disabled={!canPriorityInsert}
+                onClick={onOpenPriorityInsert}
+                title={
+                  isQueueHead
+                    ? "已在队首，无法插单"
+                    : isFrozen
+                      ? "已冻结订单不可插单"
+                      : undefined
+                }
+                className="border-orange-300 bg-orange-50 text-orange-800"
               >
-                冻结
+                插单
               </ActionBtn>
+              {canFreeze ? (
+                <ActionBtn full onClick={onOpenFreeze}>
+                  冻结
+                </ActionBtn>
+              ) : null}
               {isFrozen ? (
                 <>
                   <ActionBtn full onClick={onUnfreeze} className="border-blue-400 bg-blue-50 text-blue-900">
@@ -364,55 +370,6 @@ function ActionBtn({
     >
       {children}
     </button>
-  );
-}
-
-function MarkInProgress({
-  onConfirm,
-  maxProcessed,
-}: {
-  onConfirm: (startDate: string, processedTime: number) => void;
-  maxProcessed: number;
-}) {
-  const minDate = todayDateStr();
-  return (
-    <form
-      className="space-y-1"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const date = String(fd.get("startDate") || "");
-        const processed = roundTimelineTenth(Number(fd.get("processedTime") || 0));
-        if (date) onConfirm(date, Math.max(0, Math.min(maxProcessed, processed)));
-      }}
-    >
-      <div className="flex gap-1">
-        <input
-          name="startDate"
-          type="date"
-          required
-          min={minDate}
-          defaultValue={minDate}
-          className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
-        />
-        <button type="submit" className="rounded bg-green-700 px-2 py-1 text-xs text-white">
-          标记处理中
-        </button>
-      </div>
-      <label className="flex items-center gap-1 text-[11px] text-slate-500">
-        已处理时间 k
-        <input
-          name="processedTime"
-          type="number"
-          step={0.1}
-          min={0}
-          max={maxProcessed}
-          defaultValue={0}
-          className="w-16 rounded border border-slate-300 px-2 py-0.5 text-xs"
-        />
-        工作日
-      </label>
-    </form>
   );
 }
 

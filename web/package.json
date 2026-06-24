@@ -16,6 +16,8 @@
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "better-sqlite3": "^12.11.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
@@ -24,6 +26,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "three": "^0.184.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -32,9 +35,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.184.1",
     "@types/xlsx": "^0.0.35",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.51.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

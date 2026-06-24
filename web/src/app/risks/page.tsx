@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GuestReadOnlyBanner } from "@/components/GuestReadOnlyBanner";
 import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
 import { useAuth } from "@/lib/auth/context";
 import { RISK_LABELS } from "@/lib/types";
@@ -29,7 +28,7 @@ function formatRiskTag(tag: string): string {
 }
 
 export default function RisksPage() {
-  const { canWrite, isGuest } = useAuth();
+  const { canWrite } = useAuth();
   const [items, setItems] = useState<RiskItem[]>([]);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [riskLevel, setRiskLevel] = useState("");
@@ -63,8 +62,6 @@ export default function RisksPage() {
           </Link>
         }
       />
-
-      {isGuest ? <GuestReadOnlyBanner message="游客只读，无法编辑风险项目。" /> : null}
 
       <div className="mb-4">
         <select
