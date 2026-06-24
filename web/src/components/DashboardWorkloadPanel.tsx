@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DashboardMemberTypeChart } from "@/components/DashboardMemberTypeChart";
-import { TableWrap, TD, TD_NUM, TH, TH_NUM } from "@/components/ui";
+import { TableWrap, TD, TD_NUM, TH, TH_NUM, DisplayText } from "@/components/ui";
 import { formatNumber } from "@/lib/format";
 
 interface RankingRow {
@@ -57,7 +57,7 @@ function RankingTable({
         <tbody>
           {rows.slice(0, 8).map((row) => (
             <tr key={getName(row)}>
-              <td className={TD}>{getName(row)}</td>
+              <td className={TD}><DisplayText value={getName(row)} /></td>
               <td className={TD_NUM}>{row.count}</td>
               <td className={TD_NUM}>{formatNumber(row.complexity)}</td>
             </tr>

@@ -1,5 +1,37 @@
 import Link from "next/link";
 import { RISK_COLORS, RISK_LABELS, RISK_TOOLTIPS } from "@/lib/types";
+import { formatDate, formatNumber, isMissingField, MISSING_FIELD_LABEL } from "@/lib/format";
+
+export function MissingValue({ className = "text-red-600" }: { className?: string }) {
+  return <span className={className}>{MISSING_FIELD_LABEL}</span>;
+}
+
+export function DisplayText({
+  value,
+  className,
+}: {
+  value: string | null | undefined;
+  className?: string;
+}) {
+  if (isMissingField(value)) return <MissingValue className={className} />;
+  return <span className={className}>{value}</span>;
+}
+
+export function DisplayDate({ value }: { value: Date | string | null | undefined }) {
+  if (isMissingField(value)) return <MissingValue />;
+  return <>{formatDate(value)}</>;
+}
+
+export function DisplayNumber({
+  value,
+  digits = 1,
+}: {
+  value: number | null | undefined;
+  digits?: number;
+}) {
+  if (value == null || Number.isNaN(value)) return <MissingValue />;
+  return <>{formatNumber(value, digits)}</>;
+}
 
 export function StatCard({
   title,
@@ -68,7 +100,7 @@ export function PageHeader({
   extra,
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   action?: React.ReactNode;
   extra?: React.ReactNode;
 }) {

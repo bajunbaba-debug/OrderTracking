@@ -6,6 +6,9 @@ import { STATUS_LABELS } from "@/lib/timeline/schedule";
 import type { TimelineZoomLevel } from "@/lib/timeline/zoom";
 import { ZOOM_LEVELS, TIMELINE_ZOOM_PRESETS } from "@/lib/timeline/zoom";
 import type { MemberTimelineSummary, TimelineSearchResult } from "@/lib/timeline/types";
+import type { MemberWorkdayConfig } from "@/lib/timeline/workdays";
+import { DisplayText } from "@/components/ui";
+import { TimelineWeeklyConfig } from "@/components/timeline/TimelineWeeklyConfig";
 
 const SEARCH_PREVIEW_LIMIT = 8;
 
@@ -44,6 +47,22 @@ interface Props {
   showOwnerSwitcher: boolean;
   zoomLevel: TimelineZoomLevel;
   onZoomLevelChange: (level: TimelineZoomLevel) => void;
+  weeklyConfig?: {
+    weeks: {
+      weekStart: string;
+      label: string;
+      config: MemberWorkdayConfig;
+      saturdayMixed?: boolean;
+      sundayMixed?: boolean;
+    }[];
+    canEdit: boolean;
+    onChange: (weekStart: string, patch: Partial<MemberWorkdayConfig>) => void;
+    ownerSelect?: {
+      options: { value: string; label: string }[];
+      value: string;
+      onChange: (value: string) => void;
+    };
+  };
 }
 
 function toggleChipClass(active: boolean): string {
@@ -81,7 +100,7 @@ function OwnerSwitcher({
               onClick={() => onFocusOwner(m.owner)}
               className={`relative ${toggleChipClass(focusedOwner === m.owner)}`}
             >
-              {m.owner}
+              <DisplayText value={m.owner} />
               {m.riskCount > 0 ? (
                 <span className="absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-medium leading-none text-white ring-2 ring-slate-50">
                   {m.riskCount}
@@ -113,6 +132,7 @@ export function TimelineToolbar({
   showOwnerSwitcher,
   zoomLevel,
   onZoomLevelChange,
+  weeklyConfig,
 }: Props) {
   const searchWrapRef = useRef<HTMLDivElement>(null);
 
@@ -241,6 +261,32 @@ export function TimelineToolbar({
           </div>
         </div>
       </div>
+
+      {weeklyConfig && weeklyConfig.weeks.length > 0 ? (
+        <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-2.5">
+          {weeklyConfig.ownerSelect ? (
+            <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-600">
+              配置人员
+              <select
+                value={weeklyConfig.ownerSelect.value}
+                onChange={(e) => weeklyConfig.ownerSelect?.onChange(e.target.value)}
+                className="h-7 max-w-[9rem] rounded border border-slate-300 bg-white px-2 text-xs text-slate-800"
+              >
+                {weeklyConfig.ownerSelect.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <TimelineWeeklyConfig
+            weeks={weeklyConfig.weeks}
+            canEdit={weeklyConfig.canEdit}
+            onChange={weeklyConfig.onChange}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

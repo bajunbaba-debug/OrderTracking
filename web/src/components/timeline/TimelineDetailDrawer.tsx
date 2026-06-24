@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatDate, formatNumber } from "@/lib/format";
+import { DisplayDate, DisplayNumber, DisplayText } from "@/components/ui";
 import {
   RISK_TYPE_LABELS,
   STATUS_LABELS,
@@ -129,25 +130,25 @@ export function TimelineDetailDrawer({
           {project ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
               <dt className="text-slate-500">订单号</dt>
-              <dd>{project.contractNo || "-"}</dd>
+              <dd><DisplayText value={project.contractNo} /></dd>
               <dt className="text-slate-500">型号</dt>
-              <dd>{project.model}</dd>
+              <dd><DisplayText value={project.model} /></dd>
               <dt className="text-slate-500">处理类型</dt>
-              <dd>{project.type}</dd>
+              <dd><DisplayText value={project.type} /></dd>
               <dt className="text-slate-500">负责人</dt>
-              <dd>{project.owner}</dd>
+              <dd><DisplayText value={project.owner} /></dd>
               <dt className="text-slate-500">交货日期</dt>
-              <dd>{formatDate(project.dueDate)}</dd>
+              <dd><DisplayDate value={project.dueDate} /></dd>
               <dt className="text-slate-500">预计处理</dt>
-              <dd>{formatNumber(project.estimatedDays)} 工作日</dd>
+              <dd><DisplayNumber value={project.estimatedDays} /> 工作日</dd>
               <dt className="text-slate-500">预计开始</dt>
-              <dd>{formatDate(block.startDate)}</dd>
+              <dd><DisplayDate value={block.startDate} /></dd>
               <dt className="text-slate-500">预计完成</dt>
-              <dd>{formatDate(block.endDate)}</dd>
+              <dd><DisplayDate value={block.endDate} /></dd>
               <dt className="text-slate-500">当前状态</dt>
-              <dd>{orderState ? STATUS_LABELS[orderState.status] : "-"}</dd>
+              <dd>{orderState ? STATUS_LABELS[orderState.status] : <DisplayText value="" />}</dd>
               <dt className="text-slate-500">已处理时间 k</dt>
-              <dd>{formatNumber(orderState?.processedTime ?? 0)} 工作日</dd>
+              <dd><DisplayNumber value={orderState?.processedTime ?? 0} /> 工作日</dd>
               <dt className="text-slate-500">插单</dt>
               <dd>{orderState?.isPriorityInsert ? "是" : "否"}</dd>
               <dt className="text-slate-500">冻结</dt>
@@ -160,9 +161,9 @@ export function TimelineDetailDrawer({
               <dt className="text-slate-500">事件名称</dt>
               <dd>{block.label}</dd>
               <dt className="text-slate-500">影响人员</dt>
-              <dd>{block.owner}</dd>
+              <dd><DisplayText value={block.owner} /></dd>
               <dt className="text-slate-500">开始时间</dt>
-              <dd>{formatDate(block.startDate)}</dd>
+              <dd><DisplayDate value={block.startDate} /></dd>
               <dt className="text-slate-500">持续时间</dt>
               <dd>{block.durationDays} 工作日</dd>
               <dt className="text-slate-500">说明</dt>

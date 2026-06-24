@@ -3,6 +3,20 @@ export function formatNumber(value: number | null | undefined, digits = 1): stri
   return value.toFixed(digits).replace(/\.0$/, "");
 }
 
+export const MISSING_FIELD_LABEL = "缺失";
+
+export function isMissingField(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === "number") return Number.isNaN(value);
+  const text = String(value).trim();
+  return text === "" || text === "-";
+}
+
+/** 负责人分组键：保留字面量 N/A 姓名，仅空值归一为空字符串 */
+export function normalizeOwnerKey(owner: string | null | undefined): string {
+  return (owner ?? "").trim();
+}
+
 /** 从 Date 或 ISO 字符串提取 yyyy-MM-dd（按 UTC 日历日，避免时区偏移） */
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "-";

@@ -2,6 +2,17 @@ import { prisma } from "./prisma";
 import { computeQualityIssues } from "./calculations";
 import { dbRecordToRawRow } from "./project-input";
 import { parseJsonArray } from "./project-service";
+import { normalizeOwnerKey } from "./format";
+
+type WorkloadItem = {
+  estimatedComplexity: number | null;
+  totalComplexity: number | null;
+};
+
+/** 负载统计以预计(工作日)为准，与明细列表求和一致 */
+function itemWorkload(item: WorkloadItem): number {
+  return item.estimatedComplexity ?? item.totalComplexity ?? 0;
+}
 
 export async function getAllProjectsSerialized() {
   const items = await prisma.projectItem.findMany({ orderBy: { updatedAt: "desc" } });
@@ -21,24 +32,23 @@ export async function getDashboardStats() {
   const complete = items.filter((i) => i.designStatus === "complete");
   const qualityIssueCount = items.filter((i) => i.qualityIssues.length > 0).length;
 
-  const sum = (list: typeof items) =>
-    list.reduce((s, i) => s + (i.totalComplexity ?? 0), 0);
+  const sum = (list: typeof items) => list.reduce((s, i) => s + itemWorkload(i), 0);
 
   const ownerMap = new Map<string, { count: number; complexity: number }>();
   for (const item of incomplete) {
-    const owner = item.owner || "N/A";
+    const owner = normalizeOwnerKey(item.owner);
     const cur = ownerMap.get(owner) ?? { count: 0, complexity: 0 };
     cur.count += 1;
-    cur.complexity += item.totalComplexity;
+    cur.complexity += itemWorkload(item);
     ownerMap.set(owner, cur);
   }
 
   const completedOwnerMap = new Map<string, { count: number; complexity: number }>();
   for (const item of complete) {
-    const owner = item.owner || "N/A";
+    const owner = normalizeOwnerKey(item.owner);
     const cur = completedOwnerMap.get(owner) ?? { count: 0, complexity: 0 };
     cur.count += 1;
-    cur.complexity += item.totalComplexity;
+    cur.complexity += itemWorkload(item);
     completedOwnerMap.set(owner, cur);
   }
 
@@ -47,7 +57,7 @@ export async function getDashboardStats() {
     const type = item.type || "未分类";
     const cur = typeMap.get(type) ?? { count: 0, complexity: 0 };
     cur.count += 1;
-    cur.complexity += item.totalComplexity;
+    cur.complexity += itemWorkload(item);
     typeMap.set(type, cur);
   }
 
@@ -59,7 +69,7 @@ export async function getDashboardStats() {
   const chartOwnerSet = new Set(chartOwners);
   const chartTypeMap = new Map<string, Record<string, string | number>>();
   for (const item of incomplete) {
-    const owner = item.owner || "N/A";
+    const owner = normalizeOwnerKey(item.owner);
     if (!chartOwnerSet.has(owner)) continue;
     const type = item.type || "未分类";
     const cur = chartTypeMap.get(type) ?? { type };
@@ -142,7 +152,7 @@ export async function getMemberStats(mode: "incomplete" | "all" = "incomplete") 
     values.length > 0 ? values.reduce((s, n) => s + n, 0) / values.length : null;
 
   for (const item of scoped) {
-    const owner = item.owner || "N/A";
+    const owner = normalizeOwnerKey(item.owner);
     const cur = owners.get(owner) ?? {
       owner,
       count: 0,
@@ -157,14 +167,15 @@ export async function getMemberStats(mode: "incomplete" | "all" = "incomplete") 
       typeDetails: new Map(),
     };
     cur.count += 1;
-    cur.complexity += item.totalComplexity;
+    cur.complexity += itemWorkload(item);
     if (item.designStatus === "incomplete") {
       cur.incompleteCount += 1;
-      if (item.dueBucket === "已超期") cur.overdue += item.totalComplexity;
-      else if (item.dueBucket === "7天内") cur.due7 += item.totalComplexity;
-      else if (item.dueBucket === "8-14天") cur.due814 += item.totalComplexity;
-      else if (item.dueBucket === "15天以上") cur.due15plus += item.totalComplexity;
-      else if (item.dueBucket === "交期缺失") cur.missingDue += item.totalComplexity;
+      const workload = itemWorkload(item);
+      if (item.dueBucket === "已超期") cur.overdue += workload;
+      else if (item.dueBucket === "7天内") cur.due7 += workload;
+      else if (item.dueBucket === "8-14天") cur.due814 += workload;
+      else if (item.dueBucket === "15天以上") cur.due15plus += workload;
+      else if (item.dueBucket === "交期缺失") cur.missingDue += workload;
     } else {
       cur.completeCount += 1;
     }
@@ -182,7 +193,7 @@ export async function getMemberStats(mode: "incomplete" | "all" = "incomplete") 
       p220Values: [],
     };
     typeCur.count += 1;
-    typeCur.complexity += item.totalComplexity;
+    typeCur.complexity += itemWorkload(item);
     if (item.designStatus === "incomplete") typeCur.incompleteCount += 1;
     else typeCur.completeCount += 1;
     if (item.technicalComplexityP1 != null) typeCur.p1Values.push(item.technicalComplexityP1);
@@ -272,11 +283,11 @@ export async function getContractStats() {
     };
     if (!cur.projectName && item.projectName) cur.projectName = item.projectName;
     cur.incompleteCount += 1;
-    cur.totalComplexity += item.totalComplexity;
+    cur.totalComplexity += itemWorkload(item);
     if (item.dueDate) {
       if (!cur.earliestDue || item.dueDate < cur.earliestDue) cur.earliestDue = item.dueDate;
     }
-    const owner = item.owner || "N/A";
+    const owner = normalizeOwnerKey(item.owner);
     cur.owners.add(owner);
     if (item.type) cur.types.add(item.type);
     const list = cur.ownerItems.get(owner) ?? [];
@@ -284,7 +295,7 @@ export async function getContractStats() {
       id: item.id,
       projectName: item.projectName,
       model: item.model,
-      totalComplexity: item.totalComplexity,
+      totalComplexity: itemWorkload(item),
       dueDate: item.dueDate,
       designStatus: item.designStatus,
     });
@@ -340,9 +351,9 @@ export async function getTypeStats() {
     if (item.typeDetail) cur.typeDetails.add(item.typeDetail);
     if (item.designStatus === "incomplete") {
       cur.incompleteCount += 1;
-      cur.incompleteComplexity += item.totalComplexity;
+      cur.incompleteComplexity += itemWorkload(item);
     } else {
-      cur.completeComplexity += item.totalComplexity;
+      cur.completeComplexity += itemWorkload(item);
     }
     if (item.technicalComplexityP1 != null) cur.p1Values.push(item.technicalComplexityP1);
     if (item.p1DeviationRate != null) cur.p110Values.push(item.p1DeviationRate);

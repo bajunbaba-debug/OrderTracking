@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo, useRef, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { formatDate, parseDateInput } from "@/lib/format";
+import { DisplayText } from "@/components/ui";
 import {
   splitDateRange,
   getBlocksForSegment,
@@ -252,7 +253,8 @@ function RowFlowArrow({
 
 function ownerInitial(owner: string): string {
   const trimmed = owner.trim();
-  return trimmed ? trimmed.slice(0, 1).toUpperCase() : "?";
+  if (!trimmed) return "缺";
+  return trimmed.slice(0, 1).toUpperCase();
 }
 
 function ownerLoadLabel(blocks: ScheduledBlock[]): string {
@@ -548,7 +550,7 @@ function CompactOwnerRow({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[11px] font-semibold text-slate-800 group-hover:text-blue-800">
-              {owner}
+              <DisplayText value={owner} />
             </span>
             <span className="block truncate text-[9px] text-slate-400 group-hover:text-blue-500">
               {ownerLoadLabel(blocks)}
@@ -766,7 +768,9 @@ export function TimelineGantt({
         <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-1.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold leading-tight text-slate-800">{owner}</div>
+              <div className="text-sm font-semibold leading-tight text-slate-800">
+                <DisplayText value={owner} />
+              </div>
               <div className="text-[11px] leading-tight text-slate-500">
                 起点 {rangeStart} · 日期轴分 {segments.length} 行 · 每行 {daysPerRow} 天 · 纵向浏览
               </div>
@@ -842,33 +846,36 @@ export function TimelineGantt({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-1.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500">
-            全部概览 · 起点 {rangeStart} · 紧凑横向时间流（可横向滚动）
-          </div>
-          {overviewWeeklyWeeks && overviewWeeklyWeeks.length > 0 ? (
-            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-              <label className="flex items-center gap-1 text-[10px] text-slate-500">
-                配置人员
-                <select
-                  value={overviewWorkdayOwner}
-                  onChange={(e) => onOverviewWorkdayOwnerChange?.(e.target.value)}
-                  className="h-6 rounded border border-slate-200 bg-white px-1.5 text-[10px] text-slate-700"
-                >
-                  {overviewWorkdayOwners.map((o) => (
-                    <option key={o} value={o}>
-                      {o === "__all__" ? "全部人员" : o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <TimelineWeeklyConfig
-                weeks={overviewWeeklyWeeks}
-                canEdit={canEditOverviewWorkday}
-                onChange={onOverviewWeekConfigChange ?? (() => {})}
-              />
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold leading-tight text-slate-800">
+              全部概览
             </div>
-          ) : null}
+            <div className="text-[11px] leading-tight text-slate-500">
+              起点 {rangeStart} · 紧凑横向时间流（可横向滚动）
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <label className="flex shrink-0 items-center gap-1 text-[10px] text-slate-500">
+              配置人员
+              <select
+                value={overviewWorkdayOwner}
+                onChange={(e) => onOverviewWorkdayOwnerChange?.(e.target.value)}
+                className="h-6 max-w-[8rem] rounded border border-slate-200 bg-white px-1.5 text-[10px] text-slate-700"
+              >
+                {overviewWorkdayOwners.map((o) => (
+                  <option key={o} value={o}>
+                    {o === "__all__" ? "全部人员" : o || "缺失"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <TimelineWeeklyConfig
+              weeks={overviewWeeklyWeeks ?? []}
+              canEdit={canEditOverviewWorkday}
+              onChange={onOverviewWeekConfigChange ?? (() => {})}
+            />
+          </div>
         </div>
       </div>
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">

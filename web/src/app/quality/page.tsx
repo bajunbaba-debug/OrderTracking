@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM, DisplayDate, DisplayNumber, DisplayText } from "@/components/ui";
 import { getQualityItems } from "@/lib/analytics";
-import { formatDate, formatNumber } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 export default async function QualityPage() {
   const items = await getQualityItems();
@@ -42,20 +43,18 @@ export default async function QualityPage() {
                 <td className={`max-w-[160px] text-xs text-red-700 ${TD}`}>
                   {item.qualityIssues.join("、")}
                 </td>
-                <td className={TD}>{item.contractNo || "-"}</td>
+                <td className={TD}><DisplayText value={item.contractNo} /></td>
                 <td className={`max-w-[180px] ${TD}`}>
                   <span className="line-clamp-2" title={item.projectName || undefined}>
-                    {item.projectName || "-"}
+                    <DisplayText value={item.projectName} />
                   </span>
                 </td>
-                <td className={TD}>{item.model}</td>
-                <td className={TD_NUM}>
-                  {item.quantity != null ? formatNumber(item.quantity, 0) : "-"}
-                </td>
-                <td className={TD}>{formatDate(item.publishDate)}</td>
-                <td className={TD}>{formatDate(item.dueDate)}</td>
-                <td className={TD}>{item.owner || "N/A"}</td>
-                <td className={TD_NUM}>{formatNumber(item.estimatedComplexity)}</td>
+                <td className={TD}><DisplayText value={item.model} /></td>
+                <td className={TD_NUM}><DisplayNumber value={item.quantity} digits={0} /></td>
+                <td className={TD}><DisplayDate value={item.publishDate} /></td>
+                <td className={TD}><DisplayDate value={item.dueDate} /></td>
+                <td className={TD}><DisplayText value={item.owner} /></td>
+                <td className={TD_NUM}><DisplayNumber value={item.estimatedComplexity} /></td>
                 <td className={TD}>
                   <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
                     去编辑

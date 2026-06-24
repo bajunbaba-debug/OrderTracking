@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM, DisplayDate, DisplayNumber, DisplayText } from "@/components/ui";
 import { useAuth } from "@/lib/auth/context";
 import { DESIGN_STATUS_LABELS, DUE_BUCKET_COLORS } from "@/lib/types";
-import { formatDate, formatNumber, todayDateInput } from "@/lib/format";
+import { formatDate, todayDateInput } from "@/lib/format";
 
 interface ProjectItem {
   id: string;
@@ -313,15 +313,15 @@ function ProjectsPageInner() {
           <tbody>
             {items.map((item) => (
               <tr key={item.id}>
-                <td className={TD}>{item.type}</td>
-                <td className={TD}>{item.contractNo || "-"}</td>
+                <td className={TD}><DisplayText value={item.type} /></td>
+                <td className={TD}><DisplayText value={item.contractNo} /></td>
                 <td className={`max-w-[220px] ${TD}`}>
                   <span className="line-clamp-2" title={item.projectName || undefined}>
-                    {item.projectName || "-"}
+                    <DisplayText value={item.projectName} />
                   </span>
                 </td>
-                <td className={TD}>{item.model}</td>
-                <td className={TD}>{item.owner || "N/A"}</td>
+                <td className={TD}><DisplayText value={item.model} /></td>
+                <td className={TD}><DisplayText value={item.owner} /></td>
                 <td className={TD}>
                   <div>{DESIGN_STATUS_LABELS[item.designStatus] ?? item.designStatus}</div>
                   {item.designStatus === "complete" && item.designCompleteDate ? (
@@ -331,7 +331,7 @@ function ProjectsPageInner() {
                   ) : null}
                 </td>
                 <td className={TD}>
-                  <div>{formatDate(item.dueDate)}</div>
+                  <div><DisplayDate value={item.dueDate} /></div>
                   <span
                     className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${
                       DUE_BUCKET_COLORS[item.dueBucket] ?? ""
@@ -340,7 +340,7 @@ function ProjectsPageInner() {
                     {item.dueBucket}
                   </span>
                 </td>
-                <td className={TD_NUM}>{formatNumber(item.totalComplexity)}</td>
+                <td className={TD_NUM}><DisplayNumber value={item.totalComplexity} /></td>
                 <td className={TD}>
                   <RiskBadge level={item.riskLevel} />
                 </td>

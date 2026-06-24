@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { TableWrap } from "@/components/ui";
+import { TableWrap, DisplayDate, DisplayNumber, DisplayText } from "@/components/ui";
 import { DESIGN_STATUS_LABELS } from "@/lib/types";
-import { formatDate, formatNumber } from "@/lib/format";
 
 export interface ContractOwnerDetail {
   owner: string;
@@ -85,7 +84,7 @@ export function ContractOwnerCount({
             {owners.map((group) => (
               <section key={group.owner}>
                 <h4 className="mb-2 text-sm font-semibold text-slate-800">
-                  {group.owner}
+                  <DisplayText value={group.owner} />
                   <span className="ml-2 font-normal text-slate-500">
                     ({group.items.length} 个子项)
                   </span>
@@ -103,12 +102,12 @@ export function ContractOwnerCount({
                   <tbody>
                     {group.items.map((item) => (
                       <tr key={item.id}>
-                        <td className="max-w-[200px] px-3 py-2">{item.projectName || "-"}</td>
-                        <td className="px-3 py-2">{item.model}</td>
+                        <td className="max-w-[200px] px-3 py-2"><DisplayText value={item.projectName} /></td>
+                        <td className="px-3 py-2"><DisplayText value={item.model} /></td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {formatNumber(item.totalComplexity)}
+                          <DisplayNumber value={item.totalComplexity} />
                         </td>
-                        <td className="px-3 py-2">{formatDate(item.dueDate)}</td>
+                        <td className="px-3 py-2"><DisplayDate value={item.dueDate} /></td>
                         <td className="px-3 py-2">
                           {DESIGN_STATUS_LABELS[item.designStatus] ?? item.designStatus}
                         </td>

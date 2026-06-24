@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { PageHeader, TableWrap, RiskBadge, EmptyState, TH, TD, TH_NUM, TD_NUM, DisplayDate, DisplayNumber, DisplayText } from "@/components/ui";
 import { useAuth } from "@/lib/auth/context";
 import { RISK_LABELS } from "@/lib/types";
-import { formatDate, formatNumber } from "@/lib/format";
 
 interface RiskItem {
   id: string;
@@ -104,22 +103,24 @@ export default function RisksPage() {
                 <td className={TD}>
                   <RiskBadge level={item.riskLevel} />
                 </td>
-                <td className={TD}>{item.contractNo || "-"}</td>
+                <td className={TD}><DisplayText value={item.contractNo} /></td>
                 <td className={`max-w-[180px] ${TD}`}>
                   <span className="line-clamp-2" title={item.projectName || undefined}>
-                    {item.projectName || "-"}
+                    <DisplayText value={item.projectName} />
                   </span>
                 </td>
-                <td className={TD}>{item.model}</td>
-                <td className={TD}>{item.owner || "N/A"}</td>
+                <td className={TD}><DisplayText value={item.model} /></td>
+                <td className={TD}><DisplayText value={item.owner} /></td>
                 <td className={TD}>
-                  {formatDate(item.dueDate)}
+                  <DisplayDate value={item.dueDate} />
                   <div className="text-xs text-slate-500">{item.dueBucket}</div>
                 </td>
-                <td className={TD_NUM}>{formatNumber(item.totalComplexity)}</td>
-                <td className={TD_NUM}>{item.waitingDays ?? "-"}</td>
+                <td className={TD_NUM}><DisplayNumber value={item.totalComplexity} /></td>
+                <td className={TD_NUM}><DisplayNumber value={item.waitingDays} digits={0} /></td>
                 <td className={`max-w-[180px] text-xs text-slate-600 ${TD}`}>
-                  {[...item.riskTags, ...item.qualityIssues].map(formatRiskTag).join("、") || "-"}
+                  {[...item.riskTags, ...item.qualityIssues].map(formatRiskTag).join("、") || (
+                    <DisplayText value="" />
+                  )}
                 </td>
                 <td className={TD}>
                   {canWrite ? (

@@ -3,7 +3,8 @@
 import { Suspense, useMemo, useState } from "react";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, RoundedBox } from "@react-three/drei";
-import { formatDate, parseDateInput } from "@/lib/format";
+import { formatDate, normalizeOwnerKey, parseDateInput } from "@/lib/format";
+import { DisplayText } from "@/components/ui";
 import { calendarDaysBetween, STATUS_LABELS } from "@/lib/timeline/schedule";
 import {
   addCalendarDays,
@@ -376,7 +377,9 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 export function Timeline3DView(props: Props) {
   const [autoRoam, setAutoRoam] = useState(false);
   const visibleBlocks = props.blocks.filter((block) => block.kind === "order");
-  const owner = visibleBlocks[0]?.owner ?? props.blocks[0]?.owner ?? "N/A";
+  const owner = normalizeOwnerKey(
+    visibleBlocks[0]?.owner ?? props.blocks[0]?.owner ?? ""
+  );
 
   if (visibleBlocks.length === 0) {
     return (
@@ -412,7 +415,9 @@ export function Timeline3DView(props: Props) {
         </Suspense>
       </Canvas>
       <div className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur">
-        <div className="font-semibold text-slate-800">{owner} · 3D 排程跑道 · {visibleBlocks.length} 单</div>
+        <div className="font-semibold text-slate-800">
+          <DisplayText value={owner} /> · 3D 排程跑道 · {visibleBlocks.length} 单
+        </div>
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
           <LegendItem color="#2563eb" label="未处理" />
           <LegendItem color="#16a34a" label="处理中" />

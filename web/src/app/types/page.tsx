@@ -1,7 +1,9 @@
 import { AnalysisTabs } from "@/components/AnalysisTabs";
-import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM, DisplayText } from "@/components/ui";
 import { getTypeStats } from "@/lib/analytics";
 import { formatNumber } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 function pct(value: number | null): string {
   if (value == null || Number.isNaN(value)) return "-";
@@ -53,7 +55,7 @@ export default async function TypesPage() {
           {types.map((t) => (
             <tr key={`${t.type}-${t.typeDetail}`}>
               <td className={TD}>{t.type}</td>
-              <td className={TD}>{t.typeDetail || "-"}</td>
+              <td className={TD}><DisplayText value={t.typeDetail} /></td>
               <td className={TD_NUM}>{t.incompleteCount}</td>
               <td className={TD_NUM}>{formatNumber(t.incompleteComplexity)}</td>
               <td className={TD_NUM}>{formatNumber(t.completeComplexity)}</td>

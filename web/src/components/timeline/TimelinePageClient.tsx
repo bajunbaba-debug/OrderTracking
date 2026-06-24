@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { normalizeOwnerKey } from "@/lib/format";
 import { EmptyState } from "@/components/ui";
 import { TimelineToolbar } from "@/components/timeline/TimelineToolbar";
 import { TimelineGantt } from "@/components/timeline/TimelineGantt";
@@ -40,7 +41,12 @@ import {
   type TimelineZoomLevel,
 } from "@/lib/timeline/zoom";
 import { ALL_OWNERS_WORKDAY_KEY } from "@/lib/auth/constants";
-import { addCalendarDays, type MemberWorkdayConfig, type WorkdayLookup } from "@/lib/timeline/workdays";
+import {
+  addCalendarDays,
+  DEFAULT_WORKDAY_CONFIG,
+  type MemberWorkdayConfig,
+  type WorkdayLookup,
+} from "@/lib/timeline/workdays";
 import type {
   ScheduledBlock,
   TimelinePersistedState,
@@ -121,7 +127,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   );
 
   const allOwnersFromData = useMemo(
-    () => [...new Set(projects.map((p) => p.owner || "N/A"))].sort(),
+    () => [...new Set(projects.map((p) => normalizeOwnerKey(p.owner)))].sort(),
     [projects]
   );
 
@@ -160,13 +166,10 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const overviewOwnerOptions = useMemo(() => {
     let owners = allOwnersFromData;
     if (user?.role === "member") owners = owners.filter((o) => o === user.name);
-    if (departmentFilter === "管理部") owners = [];
-    if (ownerFilter) owners = owners.filter((o) => o === ownerFilter);
     return owners;
-  }, [allOwnersFromData, user, departmentFilter, ownerFilter]);
+  }, [allOwnersFromData, user]);
 
   const overviewWorkdayOwnerSelectOptions = useMemo(() => {
-    if (overviewOwnerOptions.length === 0) return overviewOwnerOptions;
     return [ALL_OWNERS_WORKDAY_KEY, ...overviewOwnerOptions];
   }, [overviewOwnerOptions]);
 
@@ -179,7 +182,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     overviewWorkdayOwner
   )
     ? overviewWorkdayOwner
-    : overviewWorkdayOwnerSelectOptions[0] ?? "";
+    : overviewWorkdayOwnerSelectOptions[0] ?? ALL_OWNERS_WORKDAY_KEY;
 
   const chartRangeStart = useMemo(() => addCalendarDays(serverToday, -5), [serverToday]);
   const dateRange = useMemo(
@@ -217,7 +220,8 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     ]
   );
 
-  const expandedView = focusedOwner !== null || filteredOwners.length === 1;
+  // 仅点击具体人员时进入展开视图；全部概览（含仅一名负责人）始终走紧凑概览 + 工具栏周末配置
+  const expandedView = focusedOwner !== null;
 
   const workdayOwner =
     focusedOwner ?? (user?.role === "member" ? user.name : null);
@@ -243,9 +247,23 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     const legacy = persisted.memberWorkdayConfig ?? {};
     const weekDefs = getConfigurableWeeks(timelineToday, 3);
 
+    if (!effectiveOverviewWorkdayOwner) {
+      return weekDefs.map(({ weekStart, label }) => ({
+        weekStart,
+        label,
+        config: DEFAULT_WORKDAY_CONFIG,
+      }));
+    }
+
     if (effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY) {
       const owners = overviewOwnerOptions;
-      if (owners.length === 0) return [];
+      if (owners.length === 0) {
+        return weekDefs.map(({ weekStart, label }) => ({
+          weekStart,
+          label,
+          config: DEFAULT_WORKDAY_CONFIG,
+        }));
+      }
       return weekDefs.map(({ weekStart, label }) => {
         const configs = owners.map((o) => getOwnerWeeklyConfig(o, weekStart, weekly, legacy));
         const satValues = configs.map((c) => c.saturdayWork);
@@ -267,7 +285,6 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
       });
     }
 
-    if (!effectiveOverviewWorkdayOwner) return [];
     return weekDefs.map(({ weekStart, label }) => ({
       weekStart,
       label,
@@ -862,6 +879,13 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const showWeeklyInGantt =
     expandedView && workdayOwner && weeklyWeeks.length > 0;
 
+  const canEditOverviewWorkday =
+    effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY
+      ? configurableOverviewOwners.length > 0
+      : effectiveOverviewWorkdayOwner
+        ? canManageOwner(effectiveOverviewWorkdayOwner)
+        : false;
+
   return (
     <div className="flex h-[calc(100vh-88px)] min-h-[600px] flex-col gap-2">
       <div className="shrink-0">
@@ -932,13 +956,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
           overviewWorkdayOwner={effectiveOverviewWorkdayOwner}
           onOverviewWorkdayOwnerChange={setOverviewWorkdayOwner}
           overviewWeeklyWeeks={!expandedView ? overviewWeeklyWeeks : undefined}
-          canEditOverviewWorkday={
-            effectiveOverviewWorkdayOwner === ALL_OWNERS_WORKDAY_KEY
-              ? configurableOverviewOwners.length > 0
-              : effectiveOverviewWorkdayOwner
-                ? canManageOwner(effectiveOverviewWorkdayOwner)
-                : false
-          }
+          canEditOverviewWorkday={canEditOverviewWorkday}
           onOverviewWeekConfigChange={handleOverviewWeekConfigChange}
         />
       </div>

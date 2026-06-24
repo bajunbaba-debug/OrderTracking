@@ -50,12 +50,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     indicator.style.transform = `translateX(${elRect.left - navRect.left}px)`;
   }, [pathname]);
 
-  const isTimeline = pathname.startsWith("/timeline");
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className={`mx-auto flex items-center justify-between px-4 py-3 ${isTimeline ? "max-w-none" : "max-w-[1400px] px-6"}`}>
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-3">
           <div>
             <h1 className="text-base font-semibold text-slate-900">订单项目分析系统</h1>
             <p className="text-xs text-slate-500">本地部署 · 订单项目管理</p>
@@ -87,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className={isTimeline ? "px-3 py-3" : "mx-auto max-w-[1400px] px-6 py-6"}>
+      <main className="mx-auto max-w-[1400px] px-6 py-6">
         <ContentFadeTransition>{children}</ContentFadeTransition>
       </main>
     </div>

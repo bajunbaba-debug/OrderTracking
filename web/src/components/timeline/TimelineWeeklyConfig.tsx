@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import type { MemberWorkdayConfig } from "@/lib/timeline/workdays";
 
 const CONFIG_TITLE = "周末加班配置";
@@ -116,44 +115,14 @@ function WeekRow({
 }
 
 export function TimelineWeeklyConfig({ weeks, canEdit, onChange }: Props) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
   if (weeks.length === 0) return null;
 
   return (
-    <div ref={wrapRef} className="relative shrink-0">
-      <div className="hidden items-center gap-1.5 lg:flex">
+    <div className="relative min-w-0 shrink-0">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <span className="shrink-0 text-[9px] font-medium text-slate-600">{CONFIG_TITLE}</span>
         {!canEdit ? <span className="shrink-0 text-[9px] text-slate-400">只读</span> : null}
         <WeekRow weeks={weeks} canEdit={canEdit} onChange={onChange} />
-      </div>
-
-      <div className="lg:hidden">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="whitespace-nowrap rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-700 shadow-sm"
-        >
-          {CONFIG_TITLE}
-          {!canEdit ? "·只读" : ""}
-        </button>
-        {open ? (
-          <div className="absolute right-0 top-full z-20 mt-1 max-w-[calc(100vw-2rem)] rounded-md border border-slate-200 bg-white p-2 shadow-lg">
-            <WeekRow weeks={weeks} canEdit={canEdit} onChange={onChange} />
-          </div>
-        ) : null}
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ import { getDashboardStats } from "@/lib/analytics";
 import { APP_CONFIG } from "@/lib/config";
 import { formatNumber } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const stats = await getDashboardStats();
 

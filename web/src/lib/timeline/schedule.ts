@@ -1,5 +1,5 @@
 import { daysBetween } from "@/lib/calculations";
-import { formatDate, parseDateInput } from "@/lib/format";
+import { formatDate, normalizeOwnerKey, parseDateInput } from "@/lib/format";
 import type {
   MemberTimelineSummary,
   RelatedOrderItem,
@@ -123,7 +123,7 @@ function defaultOrderState(project: TimelineProjectBase, index: number): Timelin
   const isComplete = project.designStatus === "complete";
   return {
     projectId: project.id,
-    owner: project.owner || "N/A",
+    owner: normalizeOwnerKey(project.owner),
     queueIndex: index,
     status: isComplete ? "complete" : "pending",
     isPriorityInsert: false,
@@ -149,7 +149,7 @@ export function initOrderStates(
   const byOwner = new Map<string, TimelineProjectBase[]>();
 
   for (const p of projects) {
-    const owner = p.owner || "N/A";
+    const owner = normalizeOwnerKey(p.owner);
     const list = byOwner.get(owner) ?? [];
     list.push(p);
     byOwner.set(owner, list);
@@ -171,7 +171,7 @@ export function initOrderStates(
       if (prev) {
         result.push({
           ...prev,
-          owner: p.owner || "N/A",
+          owner: normalizeOwnerKey(p.owner),
           processedTime: resolveProcessedTime(prev, p.estimatedDays),
         });
       } else {
@@ -386,7 +386,7 @@ export function computeAllSchedules(
   persisted: TimelinePersistedState,
   timelineToday: string
 ): Map<string, ScheduledBlock[]> {
-  const owners = [...new Set(projects.map((p) => p.owner || "N/A"))].sort();
+  const owners = [...new Set(projects.map((p) => normalizeOwnerKey(p.owner)))].sort();
   const map = new Map<string, ScheduledBlock[]>();
   const weekly = persisted.memberWeeklyWorkdayConfig ?? {};
   const legacy = persisted.memberWorkdayConfig ?? {};
@@ -414,7 +414,7 @@ export function summarizeMember(
   schedule: ScheduledBlock[]
 ): MemberTimelineSummary {
   const incomplete = projects.filter(
-    (p) => (p.owner || "N/A") === owner && p.designStatus !== "complete"
+    (p) => normalizeOwnerKey(p.owner) === owner && p.designStatus !== "complete"
   );
   const pending = schedule.filter((b) => b.kind === "order" && b.status !== "complete");
   const risks = schedule.flatMap((b) => b.risks);
@@ -446,7 +446,7 @@ function buildSearchResult(
   schedules: Map<string, ScheduledBlock[]>,
   orderStates: TimelineOrderState[]
 ): TimelineSearchResult {
-  const owner = p.owner || "N/A";
+  const owner = normalizeOwnerKey(p.owner);
   const schedule = schedules.get(owner) ?? [];
   const block = schedule.find((b) => b.projectId === p.id);
   const state = orderStates.find((s) => s.projectId === p.id);
@@ -493,7 +493,7 @@ export function searchOrder(
     ) {
       continue;
     }
-    const owner = p.owner || "N/A";
+    const owner = normalizeOwnerKey(p.owner);
     if (filters?.ownerFilter && owner !== filters.ownerFilter) continue;
 
     const result = buildSearchResult(p, schedules, orderStates);
@@ -564,7 +564,7 @@ export function projectToTimelineBase(p: {
     projectName: p.projectName,
     model: p.model,
     type: p.type,
-    owner: p.owner || "N/A",
+    owner: normalizeOwnerKey(p.owner),
     dueDate: p.dueDate ? formatDate(p.dueDate) : null,
     estimatedDays: p.totalComplexity ?? p.estimatedComplexity ?? 0,
     designStatus: p.designStatus,

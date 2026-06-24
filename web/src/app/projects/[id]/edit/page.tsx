@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, DisplayText } from "@/components/ui";
 import { ProjectForm, type ProjectFormReturnTo } from "@/components/ProjectForm";
 import { projectToFormValues } from "@/lib/project-form";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +22,14 @@ export default async function EditProjectPage({ params, searchParams }: Params) 
 
   return (
     <>
-      <PageHeader title="编辑项目明细" description={`型号：${item.model || "-"} · 负责人：${item.owner || "N/A"}`} />
+      <PageHeader
+        title="编辑项目明细"
+        description={
+          <>
+            型号：<DisplayText value={item.model} /> · 负责人：<DisplayText value={item.owner} />
+          </>
+        }
+      />
       <ProjectForm projectId={id} initial={projectToFormValues(item)} returnTo={returnTo} />
     </>
   );

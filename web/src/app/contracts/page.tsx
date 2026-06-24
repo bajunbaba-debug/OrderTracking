@@ -1,8 +1,10 @@
 import { AnalysisTabs } from "@/components/AnalysisTabs";
 import { ContractOwnerCount } from "@/components/ContractOwnersPanel";
-import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM } from "@/components/ui";
+import { PageHeader, TableWrap, EmptyState, TH, TD, TH_NUM, TD_NUM, DisplayDate, DisplayText } from "@/components/ui";
 import { getContractStats } from "@/lib/analytics";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 export default async function ContractsPage() {
   const contracts = await getContractStats();
@@ -40,15 +42,15 @@ export default async function ContractsPage() {
         <tbody>
           {contracts.map((c) => (
             <tr key={c.contractNo}>
-              <td className={TD}>{c.contractNo}</td>
+              <td className={TD}><DisplayText value={c.contractNo} /></td>
               <td className={`max-w-[260px] ${TD}`}>
                 <span className="line-clamp-2" title={c.projectName || undefined}>
-                  {c.projectName || "-"}
+                  <DisplayText value={c.projectName} />
                 </span>
               </td>
               <td className={TD_NUM}>{c.incompleteCount}</td>
               <td className={TD_NUM}>{formatNumber(c.totalComplexity)}</td>
-              <td className={TD}>{formatDate(c.earliestDue)}</td>
+              <td className={TD}><DisplayDate value={c.earliestDue} /></td>
               <td className={TD_NUM}>
                 <ContractOwnerCount count={c.ownerCount} owners={c.ownerDetails} />
               </td>
