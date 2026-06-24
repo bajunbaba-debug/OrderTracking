@@ -10,7 +10,6 @@ import type { MemberTimelineSummary, TimelineSearchResult } from "@/lib/timeline
 const SEARCH_PREVIEW_LIMIT = 8;
 
 /** 工具栏统一尺寸 */
-const LABEL = "mb-1 block h-4 text-xs leading-4 text-slate-500";
 const CONTROL_H = "h-8";
 const TEXT = "text-xs";
 const INPUT =
@@ -65,9 +64,9 @@ function OwnerSwitcher({
   onFocusOwner: (owner: string | null) => void;
 }) {
   return (
-    <div className="min-w-[140px] max-w-md flex-1 self-end rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
-      <div className="max-h-12 overflow-y-auto overflow-x-hidden">
-        <div className="flex flex-wrap gap-1">
+    <div className="relative min-w-[140px] max-w-md flex-1 overflow-visible rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex h-8 items-center overflow-x-auto overflow-y-visible px-2 [scrollbar-width:thin]">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onFocusOwner(null)}
@@ -80,10 +79,14 @@ function OwnerSwitcher({
               key={m.owner}
               type="button"
               onClick={() => onFocusOwner(m.owner)}
-              className={toggleChipClass(focusedOwner === m.owner)}
+              className={`relative ${toggleChipClass(focusedOwner === m.owner)}`}
             >
               {m.owner}
-              {m.riskCount > 0 ? `(${m.riskCount})` : ""}
+              {m.riskCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-medium leading-none text-white ring-2 ring-slate-50">
+                  {m.riskCount}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -117,41 +120,40 @@ export function TimelineToolbar({
   const moreCount = Math.max(0, searchResults.length - SEARCH_PREVIEW_LIMIT);
 
   return (
-    <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <div ref={searchWrapRef} className="relative min-w-[240px] flex-1">
-          <div className="mb-1 flex h-4 items-center gap-2">
-            <span className={`${TEXT} text-slate-500`}>订单号搜索</span>
-            <button type="button" onClick={onToggleDelayed} className={toggleChipClass(onlyDelayed)}>
-              延期风险
-            </button>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => onSearchInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onSearchSubmit();
-                }
-                if (e.key === "Escape") onSearchClose();
-              }}
-              placeholder="合同号 / 项目名"
-              className={`${INPUT} min-w-[120px] flex-1`}
+    <div className="mb-3 overflow-visible rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className={`${TEXT} text-slate-500`}>订单号搜索</span>
+        <button type="button" onClick={onToggleDelayed} className={toggleChipClass(onlyDelayed)}>
+          延期风险
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 overflow-visible">
+        <div ref={searchWrapRef} className="relative flex min-w-[240px] flex-1 flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => onSearchInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSearchSubmit();
+              }
+              if (e.key === "Escape") onSearchClose();
+            }}
+            placeholder="合同号 / 项目名"
+            className={`${INPUT} min-w-[120px] flex-1`}
+          />
+          <button type="button" onClick={onSearchSubmit} className={BTN_PRIMARY}>
+            搜索
+          </button>
+          {showOwnerSwitcher ? (
+            <OwnerSwitcher
+              members={members}
+              focusedOwner={focusedOwner}
+              onFocusOwner={onFocusOwner}
             />
-            <button type="button" onClick={onSearchSubmit} className={BTN_PRIMARY}>
-              搜索
-            </button>
-            {showOwnerSwitcher ? (
-              <OwnerSwitcher
-                members={members}
-                focusedOwner={focusedOwner}
-                onFocusOwner={onFocusOwner}
-              />
-            ) : null}
-          </div>
+          ) : null}
           {searchOpen && searchResults.length > 0 ? (
             <>
               <div className="fixed inset-0 z-30" onClick={onSearchClose} aria-hidden="true" />
@@ -198,46 +200,44 @@ export function TimelineToolbar({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-end gap-3">
-          <div>
-            <label className={LABEL}>状态</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value)}
-              className={SELECT}
-            >
-              <option value="">全部</option>
-              <option value="pending">未处理</option>
-              <option value="in_progress">正在处理</option>
-              <option value="frozen">已冻结</option>
-            </select>
-          </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`${TEXT} shrink-0 text-slate-500`}>状态</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className={SELECT}
+          >
+            <option value="">全部</option>
+            <option value="pending">未处理</option>
+            <option value="in_progress">正在处理</option>
+            <option value="frozen">已冻结</option>
+          </select>
+        </div>
 
-          <div>
-            <span className={LABEL}>时间轴</span>
-            <div
-              className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
-            >
-              {ZOOM_LEVELS.map((level) => {
-                const preset = TIMELINE_ZOOM_PRESETS[level];
-                const active = zoomLevel === level;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => onZoomLevelChange(level)}
-                    title={`每行 ${preset.daysPerRow} 天`}
-                    className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
-                      active
-                        ? "bg-slate-900 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-white hover:text-slate-900"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`${TEXT} shrink-0 text-slate-500`}>时间轴</span>
+          <div
+            className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
+          >
+            {ZOOM_LEVELS.map((level) => {
+              const preset = TIMELINE_ZOOM_PRESETS[level];
+              const active = zoomLevel === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => onZoomLevelChange(level)}
+                  title={`每行 ${preset.daysPerRow} 天`}
+                  className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
+                    active
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-white hover:text-slate-900"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

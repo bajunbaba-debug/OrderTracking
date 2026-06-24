@@ -1,13 +1,18 @@
 import { prisma } from "./prisma";
+import { computeQualityIssues } from "./calculations";
+import { dbRecordToRawRow } from "./project-input";
 import { parseJsonArray } from "./project-service";
 
 export async function getAllProjectsSerialized() {
   const items = await prisma.projectItem.findMany({ orderBy: { updatedAt: "desc" } });
-  return items.map((item) => ({
-    ...item,
-    riskTags: parseJsonArray(item.riskTags),
-    qualityIssues: parseJsonArray(item.qualityIssues),
-  }));
+  return items.map((item) => {
+    const qualityIssues = computeQualityIssues(dbRecordToRawRow(item));
+    return {
+      ...item,
+      riskTags: parseJsonArray(item.riskTags),
+      qualityIssues,
+    };
+  });
 }
 
 export async function getDashboardStats() {

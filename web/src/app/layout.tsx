@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "@/components/AppShell";
+import { AppLayout } from "@/components/AppLayout";
 import { AuthProvider } from "@/lib/auth/context";
 import "./globals.css";
 
@@ -17,7 +17,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="min-h-screen antialiased">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          <AppLayout>{children}</AppLayout>
         </AuthProvider>
       </body>
     </html>

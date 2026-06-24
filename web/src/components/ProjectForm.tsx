@@ -89,20 +89,24 @@ function SelectOrInput({
   );
 }
 
+type DictionaryTab = "type" | "typeDetail" | "remark" | "owner";
+
 function DictionaryManager({
   dict,
   selectedType,
+  initialTab = "type",
   onClose,
   onUpdated,
   readOnly = false,
 }: {
   dict: DictionaryMap;
   selectedType: string;
+  initialTab?: DictionaryTab;
   onClose: () => void;
   onUpdated: (next: DictionaryMap) => void;
   readOnly?: boolean;
 }) {
-  const [tab, setTab] = useState<"type" | "typeDetail" | "remark">("type");
+  const [tab, setTab] = useState<DictionaryTab>(initialTab);
   const [newValue, setNewValue] = useState("");
   const [parentType, setParentType] = useState(selectedType);
   const [busy, setBusy] = useState(false);
@@ -161,6 +165,7 @@ function DictionaryManager({
 
   const typeList = dict.type ?? [];
   const remarkList = dict.remark ?? [];
+  const ownerList = dict.owner ?? [];
   const detailList =
     tab === "typeDetail" && parentType
       ? (dict.typeDetailByType?.[parentType] ?? [])
@@ -194,6 +199,7 @@ function DictionaryManager({
             [
               ["type", "类型"],
               ["typeDetail", "类型细化"],
+              ["owner", "负责人"],
               ["remark", "常用备注"],
             ] as const
           ).map(([key, label]) => (
@@ -259,7 +265,9 @@ function DictionaryManager({
             ? typeList
             : tab === "remark"
               ? remarkList
-              : detailList
+              : tab === "owner"
+                ? ownerList
+                : detailList
           ).map((item) => (
             <li key={item} className="flex items-center justify-between px-3 py-2 text-sm">
               <span>{item}</span>
@@ -281,7 +289,9 @@ function DictionaryManager({
             ? typeList
             : tab === "remark"
               ? remarkList
-              : detailList
+              : tab === "owner"
+                ? ownerList
+                : detailList
           ).length === 0 ? (
             <li className="px-3 py-4 text-center text-sm text-slate-400">暂无选项</li>
           ) : null}
@@ -313,6 +323,12 @@ export function ProjectForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [dictOpen, setDictOpen] = useState(false);
+  const [dictTab, setDictTab] = useState<DictionaryTab>("type");
+
+  function openDictManager(tab: DictionaryTab) {
+    setDictTab(tab);
+    setDictOpen(true);
+  }
 
   const loadDict = useCallback(() => {
     fetch("/api/dictionaries")
@@ -410,7 +426,7 @@ export function ProjectForm({
             options={dict.type}
             onChange={update}
             readOnly={!canWrite}
-            onManage={canWrite ? () => setDictOpen(true) : undefined}
+            onManage={canWrite ? () => openDictManager("type") : undefined}
           />
           <SelectOrInput
             label="类型细化"
@@ -419,7 +435,7 @@ export function ProjectForm({
             options={typeDetailOptions}
             onChange={update}
             readOnly={!canWrite}
-            onManage={canWrite ? () => setDictOpen(true) : undefined}
+            onManage={canWrite ? () => openDictManager("typeDetail") : undefined}
           />
           <SelectOrInput
             label="合同号"
@@ -499,6 +515,7 @@ export function ProjectForm({
             options={dict.owner}
             onChange={update}
             readOnly={!canWrite}
+            onManage={canWrite ? () => openDictManager("owner") : undefined}
           />
           <label className="block">
             <span className="mb-1 block text-xs text-slate-500">预计(工作日)</span>
@@ -534,7 +551,7 @@ export function ProjectForm({
             options={dict.remark}
             onChange={update}
             readOnly={!canWrite}
-            onManage={canWrite ? () => setDictOpen(true) : undefined}
+            onManage={canWrite ? () => openDictManager("remark") : undefined}
           />
           <label className="block md:col-span-2">
             <span className="mb-1 block text-xs text-slate-500">额外备注</span>
@@ -571,8 +588,10 @@ export function ProjectForm({
 
       {dictOpen && canWrite ? (
         <DictionaryManager
+          key={dictTab}
           dict={dict}
           selectedType={form.type}
+          initialTab={dictTab}
           onClose={() => setDictOpen(false)}
           onUpdated={(next) => {
             setDict(next);

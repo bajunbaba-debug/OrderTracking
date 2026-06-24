@@ -19,6 +19,7 @@ const AUTH_CHANGE_EVENT = "order-tracking-auth-change";
 
 interface AuthContextValue {
   user: AuthUser | null;
+  authReady: boolean;
   isAdmin: boolean;
   canWrite: boolean;
   login: (username: string, password: string) => Promise<string | null>;
@@ -89,11 +90,21 @@ function emitAuthStoreChange() {
   }
 }
 
+function getAuthReadySnapshot(): boolean {
+  if (typeof window === "undefined") return false;
+  return cachedUser !== undefined;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const user = useSyncExternalStore(
     subscribeAuthStore,
     getStoredUserSnapshot,
     () => null
+  );
+  const authReady = useSyncExternalStore(
+    subscribeAuthStore,
+    getAuthReadySnapshot,
+    () => false
   );
   const [memberUsers, setMemberUsers] = useState<AuthUser[]>([]);
 
@@ -141,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       user,
+      authReady,
       isAdmin: user?.role === "admin",
       canWrite: canWriteRole(user?.role),
       login,
@@ -149,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       members,
       setMembersFromOwners,
     }),
-    [user, login, logout, canManageOwner, members, setMembersFromOwners]
+    [user, authReady, login, logout, canManageOwner, members, setMembersFromOwners]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
