@@ -95,6 +95,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchHitProjectIds, setSearchHitProjectIds] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -224,6 +225,44 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     [schedules, projects, allOwnersFromData]
   );
 
+  const searchHitProjectIdSet = useMemo(
+    () => new Set(searchHitProjectIds),
+    [searchHitProjectIds]
+  );
+
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (!value.trim()) {
+      setSearchQuery("");
+      setSearchHitProjectIds([]);
+    }
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    const q = searchInput.trim();
+    setSearchQuery(q);
+    setSearchOpen(true);
+    if (!q) {
+      setSearchHitProjectIds([]);
+      return;
+    }
+    const results = searchOrder(q, projects, schedules, persisted.orderStates, {
+      ownerFilter: ownerFilter || undefined,
+      departmentFilter: departmentFilter || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    });
+    setSearchHitProjectIds(results.map((r) => r.projectId));
+  }, [
+    searchInput,
+    projects,
+    schedules,
+    persisted.orderStates,
+    ownerFilter,
+    departmentFilter,
+    dateFrom,
+    dateTo,
+  ]);
   const searchResults = useMemo(
     () =>
       searchQuery
@@ -995,11 +1034,8 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
       <div className="shrink-0">
         <TimelineToolbar
           searchInput={searchInput}
-          onSearchInputChange={setSearchInput}
-          onSearchSubmit={() => {
-            setSearchQuery(searchInput.trim());
-            setSearchOpen(true);
-          }}
+          onSearchInputChange={handleSearchInputChange}
+          onSearchSubmit={handleSearchSubmit}
           searchResults={searchResults}
           searchOpen={searchOpen}
           onSearchClose={() => setSearchOpen(false)}
@@ -1040,6 +1076,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
           expanded={expandedView}
           selectedBlockId={selectedBlock?.id ?? null}
           highlightProjectId={highlightProjectId}
+          searchHitProjectIds={searchHitProjectIdSet}
           onSelectBlock={openBlock}
           onFocusOwner={handleFocusOwner}
           scrollToOwner={scrollToOwner}

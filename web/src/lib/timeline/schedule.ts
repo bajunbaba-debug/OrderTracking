@@ -472,6 +472,74 @@ function buildSearchResult(
   };
 }
 
+/** 解析搜索框输入：无 / 为单项，有 / 为多项 */
+export function parseOrderSearchTerms(query: string): string[] {
+  if (!query.includes("/")) {
+    const single = query.trim();
+    return single ? [single] : [];
+  }
+  return query
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** 合同号是否命中搜索项（纯数字用分段/后缀精确匹配，避免 172→182、150→151 误命中） */
+function contractNoMatchesSearchTerm(contractNo: string, term: string): boolean {
+  const cn = contractNo.trim().toLowerCase();
+  const q = term.trim().toLowerCase();
+  if (!cn || !q) return false;
+  if (cn === q) return true;
+
+  const isNumericTerm = /^\d+$/.test(term.trim());
+  const segments = cn.split(/[/\-_.\\\s]+/).filter(Boolean);
+
+  if (segments.some((segment) => segment === q)) return true;
+
+  if (isNumericTerm) {
+    for (const segment of segments) {
+      const trailingDigits = segment.match(/(\d+)$/);
+      if (trailingDigits?.[1] === q) return true;
+      if (/^\d+$/.test(segment) && segment.endsWith(q)) {
+        const prefix = segment.slice(0, -q.length);
+        if (prefix.length > 0 && /^\d+$/.test(prefix)) return true;
+      }
+    }
+    return false;
+  }
+
+  return cn.includes(q) || segments.some((segment) => segment.includes(q));
+}
+
+/** 单项是否匹配：合同号(项目名) 需合同号命中且项目名包含括号内文本；否则合同号或项目名分别匹配后汇总 */
+export function projectMatchesOrderSearchTerm(
+  project: TimelineProjectBase,
+  term: string
+): boolean {
+  const trimmed = term.trim();
+  if (!trimmed) return false;
+
+  const contractNo = project.contractNo;
+  const projectName = project.projectName.toLowerCase();
+  const parenMatch = trimmed.match(/^(.+?)\((.+)\)$/);
+
+  if (parenMatch) {
+    const contractPart = parenMatch[1].trim();
+    const projectPart = parenMatch[2].trim().toLowerCase();
+    if (!contractPart || !projectPart) return false;
+    return (
+      contractNoMatchesSearchTerm(contractNo, contractPart) &&
+      projectName.includes(projectPart)
+    );
+  }
+
+  const q = trimmed.toLowerCase();
+  const contractMatched = contractNoMatchesSearchTerm(contractNo, trimmed);
+  // 纯数字只匹配合同号，避免项目名含 150 时误带出 151 等订单
+  if (/^\d+$/.test(trimmed)) return contractMatched;
+  return contractMatched || projectName.includes(q);
+}
+
 export function searchOrder(
   query: string,
   projects: TimelineProjectBase[],
@@ -484,17 +552,14 @@ export function searchOrder(
     dateTo?: string;
   }
 ): TimelineSearchResult[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
+  const terms = parseOrderSearchTerms(query);
+  if (terms.length === 0) return [];
 
   if (filters?.departmentFilter === "管理部") return [];
 
   const results: TimelineSearchResult[] = [];
   for (const p of projects) {
-    if (
-      !p.contractNo.toLowerCase().includes(q) &&
-      !p.projectName.toLowerCase().includes(q)
-    ) {
+    if (!terms.some((term) => projectMatchesOrderSearchTerm(p, term))) {
       continue;
     }
     const owner = normalizeOwnerKey(p.owner);

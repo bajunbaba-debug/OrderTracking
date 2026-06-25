@@ -39,7 +39,7 @@ export default async function DashboardPage() {
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
         <StatCard
-          title="未完成总预计(工作日)"
+          title="工作日"
           value={formatNumber(stats.incompleteComplexity)}
           sub={`${stats.incompleteCount} 条未完成`}
         />
@@ -62,8 +62,9 @@ export default async function DashboardPage() {
           sub={`预计(工作日) ${formatNumber(stats.missingDueComplexity)}`}
         />
         <StatCard
-          title="数据质量问题"
+          title="数据质量"
           value={stats.qualityIssueCount}
+          alertHighlight
           href={stats.qualityIssueCount > 0 ? "/quality?from=projects" : undefined}
           disabled={stats.qualityIssueCount <= 0}
         />

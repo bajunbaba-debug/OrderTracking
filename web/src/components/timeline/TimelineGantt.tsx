@@ -115,6 +115,7 @@ interface Props {
   expanded: boolean;
   selectedBlockId: string | null;
   highlightProjectId: string | null;
+  searchHitProjectIds?: ReadonlySet<string>;
   onSelectBlock: (block: ScheduledBlock) => void;
   onFocusOwner?: (owner: string) => void;
   scrollToOwner: string | null;
@@ -521,6 +522,7 @@ function CompactOwnerRow({
   dayWidth,
   selectedBlockId,
   highlightProjectId,
+  searchHitProjectIds,
   onSelectBlock,
   onFocusOwner,
 }: {
@@ -532,6 +534,7 @@ function CompactOwnerRow({
   dayWidth: number;
   selectedBlockId: string | null;
   highlightProjectId: string | null;
+  searchHitProjectIds?: ReadonlySet<string>;
   onSelectBlock: (block: ScheduledBlock) => void;
   onFocusOwner?: (owner: string) => void;
 }) {
@@ -603,6 +606,9 @@ function CompactOwnerRow({
             const progressFill = showProgress
               ? getBlockProgressFillPercent(block, block.processedTime, block.estimatedDays)
               : 0;
+            const isSearchHit =
+              block.kind === "order" &&
+              Boolean(block.projectId && searchHitProjectIds?.has(block.projectId));
             return (
               <button
                 key={`${block.kind}-${block.id}`}
@@ -612,7 +618,9 @@ function CompactOwnerRow({
                 onClick={() => onSelectBlock(block)}
                 className={`timeline-bar !absolute top-1.5 z-[1] flex h-9 cursor-pointer flex-col justify-center overflow-hidden rounded px-1 text-left text-[10px] text-white ring-1 ring-white/30 shadow-sm ${blockStyle(block)} ${
                   selectedBlockId === block.id ? "ring-2 ring-slate-900 ring-offset-1" : ""
-                } ${highlightProjectId === block.projectId ? "timeline-bar-highlight" : ""}`}
+                } ${highlightProjectId === block.projectId ? "timeline-bar-highlight" : ""} ${
+                  isSearchHit ? "timeline-bar-search-hit" : ""
+                }`}
                 style={{ left, width }}
               >
                 {showProgress ? (
@@ -677,6 +685,7 @@ export function TimelineGantt({
   expanded,
   selectedBlockId,
   highlightProjectId,
+  searchHitProjectIds,
   onSelectBlock,
   onFocusOwner,
   scrollToOwner,
@@ -919,6 +928,7 @@ export function TimelineGantt({
               dayWidth={overviewDayWidth}
               selectedBlockId={selectedBlockId}
               highlightProjectId={highlightProjectId}
+              searchHitProjectIds={searchHitProjectIds}
               onSelectBlock={onSelectBlock}
               onFocusOwner={onFocusOwner}
             />

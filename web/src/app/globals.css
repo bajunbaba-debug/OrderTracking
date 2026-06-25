@@ -411,6 +411,38 @@ table tbody tr:hover {
   box-shadow: 0 0 0 3px rgb(59 130 246 / 45%);
 }
 
+.timeline-bar-search-hit {
+  animation: timeline-search-hit-breathe 2s ease-in-out infinite;
+}
+
+.timeline-bar-search-hit::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 6;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 9px 9px 0;
+  border-color: transparent rgb(239 68 68) transparent transparent;
+  pointer-events: none;
+}
+
+@keyframes timeline-search-hit-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgb(239 68 68 / 75%),
+      0 0 8px rgb(239 68 68 / 35%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(248 113 113 / 55%),
+      0 0 14px rgb(239 68 68 / 60%);
+  }
+}
+
 @keyframes timeline-pulse {
   0%,
   100% {
@@ -429,5 +461,14 @@ table tbody tr:hover {
   .timeline-row-flow-arrow {
     animation: none;
     opacity: 0;
+  }
+
+  .timeline-bar-search-hit {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(239 68 68 / 75%);
+  }
+
+  .timeline-bar-search-hit::after {
+    border-color: transparent rgb(239 68 68) transparent transparent;
   }
 }
