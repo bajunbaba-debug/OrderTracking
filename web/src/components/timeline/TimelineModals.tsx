@@ -80,6 +80,7 @@ export function PriorityInsertModal({
     return markCurrent ? `${base}（当前）` : base;
   };
   const insertSelf = projectId === insertBefore;
+  const insertingAtHead = insertBefore === (queueProjects[0]?.id ?? "");
 
   return (
     <ModalShell title="插单" onClose={onClose}>
@@ -162,11 +163,17 @@ export function PriorityInsertModal({
         <span className={labelClass}>插单原因</span>
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} className={fieldClass} rows={2} />
       </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={freezeCurrent} onChange={(e) => setFreezeCurrent(e.target.checked)} />
-        是否冻结当前处理订单
-      </label>
-      {freezeCurrent ? (
+      {insertingAtHead ? (
+        <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+          插到队首时会自动标记为处理中；原队首若正在处理，将取消处理中并排在插单后。
+        </p>
+      ) : (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={freezeCurrent} onChange={(e) => setFreezeCurrent(e.target.checked)} />
+          是否冻结当前处理订单
+        </label>
+      )}
+      {freezeCurrent && !insertingAtHead ? (
         <label className="block text-sm">
           <span className={labelClass}>已处理时间 k（工作日）</span>
           <input
@@ -233,8 +240,9 @@ export function MarkInProgressModal({
         <input
           type="date"
           required
+          min={serverToday}
           value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+          onChange={(e) => setStartDate(e.target.value < serverToday ? serverToday : e.target.value)}
           className={fieldClass}
         />
       </label>
@@ -264,7 +272,7 @@ export function MarkInProgressModal({
           type="button"
           onClick={() =>
             onConfirm({
-              startDate,
+              startDate: startDate < serverToday ? serverToday : startDate,
               processedTime: roundTimelineTenth(processedTime),
             })
           }

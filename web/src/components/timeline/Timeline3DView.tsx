@@ -37,14 +37,12 @@ function statusColor(block: ScheduledBlock): string {
   if (block.kind === "incident") return "#8b5cf6";
   if (block.status === "in_progress") return "#16a34a";
   if (block.isFrozen) return "#64748b";
-  if (block.isPriorityInsert) return "#f97316";
   if (block.isDelayed) return "#dc2626";
   return "#2563eb";
 }
 
 function statusGlow(block: ScheduledBlock): string {
   if (block.status === "in_progress") return "#bbf7d0";
-  if (block.isPriorityInsert) return "#fed7aa";
   if (block.isDelayed) return "#fecaca";
   if (block.isFrozen) return "#e2e8f0";
   return "#bfdbfe";

@@ -32,6 +32,7 @@ import {
   RISK_TYPE_LABELS,
   searchOrder,
   summarizeMember,
+  unmarkInProgressKeepProcessedTime,
 } from "@/lib/timeline/schedule";
 import { appendLog, loadTimelineState, saveTimelineState } from "@/lib/timeline/storage";
 import {
@@ -49,11 +50,35 @@ import {
 } from "@/lib/timeline/workdays";
 import type {
   ScheduledBlock,
+  TimelineOrderState,
   TimelinePersistedState,
   TimelineProjectBase,
 } from "@/lib/timeline/types";
 
 type ModalType = "priority" | "freeze" | "restart" | "incident" | "markInProgress" | null;
+type ReorderAction = "up" | "down" | "top" | "bottom";
+
+function sortOwnerQueueStates(states: TimelineOrderState[]): TimelineOrderState[] {
+  return [...states].sort((a, b) => {
+    const af = a.status === "frozen" ? 1 : 0;
+    const bf = b.status === "frozen" ? 1 : 0;
+    if (af !== bf) return af - bf;
+    return a.queueIndex - b.queueIndex;
+  });
+}
+
+function reindexOwnerQueue(
+  orderStates: TimelineOrderState[],
+  owner: string,
+  orderedProjectIds: string[]
+): TimelineOrderState[] {
+  const indexMap = new Map(orderedProjectIds.map((id, i) => [id, i * 10]));
+  return orderStates.map((s) =>
+    s.owner === owner && indexMap.has(s.projectId)
+      ? { ...s, queueIndex: indexMap.get(s.projectId)! }
+      : s
+  );
+}
 
 export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const searchParams = useSearchParams();
@@ -83,6 +108,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const [toast, setToast] = useState("");
   const [zoomLevel, setZoomLevel] = useState<TimelineZoomLevel>(() => loadZoomLevel());
   const [overviewWorkdayOwner, setOverviewWorkdayOwner] = useState("");
+  const [flowRunVersion, setFlowRunVersion] = useState(0);
 
   const zoomPreset = useMemo(() => getZoomPreset(zoomLevel), [zoomLevel]);
 
@@ -407,6 +433,10 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     setTimeout(() => setToast(""), 4000);
   };
 
+  const restartFlowRun = useCallback(() => {
+    setFlowRunVersion((v) => v + 1);
+  }, []);
+
   const openBlock = (block: ScheduledBlock) => {
     setSelectedBlock(block);
     setHighlightProjectId(block.projectId ?? null);
@@ -532,36 +562,53 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   const reorderOwnerQueue = (
     owner: string,
     projectId: string,
-    action: "up" | "down" | "top"
+    action: ReorderAction
   ) => {
     if (!canManageOwner(owner)) return;
     updatePersisted(
       (prev) => {
-        const states = prev.orderStates
-          .filter((s) => s.owner === owner && s.status !== "complete")
-          .sort((a, b) => a.queueIndex - b.queueIndex);
-        const idx = states.findIndex((s) => s.projectId === projectId);
+        const states = sortOwnerQueueStates(
+          prev.orderStates.filter((s) => s.owner === owner && s.status !== "complete")
+        );
+        const activeStates = states.filter((s) => s.status !== "frozen");
+        const frozenIds = states
+          .filter((s) => s.status === "frozen")
+          .map((s) => s.projectId);
+        const idx = activeStates.findIndex((s) => s.projectId === projectId);
         if (idx < 0) return prev;
-        if (states[idx].status === "frozen") return prev;
 
-        const newOrder = states.map((s) => s.projectId);
+        const newActiveOrder = activeStates.map((s) => s.projectId);
         if (action === "up" && idx > 0) {
-          [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
-        } else if (action === "down" && idx < newOrder.length - 1) {
-          [newOrder[idx + 1], newOrder[idx]] = [newOrder[idx], newOrder[idx + 1]];
+          [newActiveOrder[idx - 1], newActiveOrder[idx]] = [
+            newActiveOrder[idx],
+            newActiveOrder[idx - 1],
+          ];
+        } else if (action === "down" && idx < newActiveOrder.length - 1) {
+          [newActiveOrder[idx + 1], newActiveOrder[idx]] = [
+            newActiveOrder[idx],
+            newActiveOrder[idx + 1],
+          ];
         } else if (action === "top" && idx > 0) {
-          const [item] = newOrder.splice(idx, 1);
-          newOrder.unshift(item);
+          const [item] = newActiveOrder.splice(idx, 1);
+          newActiveOrder.unshift(item);
+        } else if (action === "bottom" && idx < newActiveOrder.length - 1) {
+          const [item] = newActiveOrder.splice(idx, 1);
+          newActiveOrder.push(item);
         } else {
           return prev;
         }
 
-        const indexMap = new Map(newOrder.map((id, i) => [id, i * 10]));
+        const headProjectId = newActiveOrder[0] ?? null;
+        const reordered = reindexOwnerQueue(prev.orderStates, owner, [
+          ...newActiveOrder,
+          ...frozenIds,
+        ]);
+
         return {
           ...prev,
-          orderStates: prev.orderStates.map((s) =>
-            s.owner === owner && indexMap.has(s.projectId)
-              ? { ...s, queueIndex: indexMap.get(s.projectId)! }
+          orderStates: reordered.map((s) =>
+            s.owner === owner && s.status === "in_progress" && s.projectId !== headProjectId
+              ? unmarkInProgressKeepProcessedTime(s)
               : s
           ),
         };
@@ -574,6 +621,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
         affectedCount: 1,
       }
     );
+    restartFlowRun();
     showToast("顺序已调整，时间流已重新计算");
   };
 
@@ -589,24 +637,47 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
 
     updatePersisted(
       (prev) => {
-        const target = prev.orderStates.find((s) => s.projectId === data.insertBeforeProjectId);
-        const insertIndex = target ? target.queueIndex - 1 : 0;
+        const states = sortOwnerQueueStates(
+          prev.orderStates.filter((s) => s.owner === owner && s.status !== "complete")
+        );
+        const insertBeforeIndex = states.findIndex(
+          (s) => s.projectId === data.insertBeforeProjectId
+        );
+        const insertAt = insertBeforeIndex >= 0 ? insertBeforeIndex : 0;
+        const insertAtHead = insertAt === 0;
+        const newOrder = states.map((s) => s.projectId).filter((id) => id !== data.projectId);
+        const targetIndex = newOrder.indexOf(data.insertBeforeProjectId);
+        newOrder.splice(targetIndex >= 0 ? targetIndex : 0, 0, data.projectId);
         let orderStates = prev.orderStates.map((s) => {
+          if (
+            insertAtHead &&
+            s.owner === owner &&
+            s.status === "in_progress" &&
+            s.projectId !== data.projectId
+          ) {
+            return resetToInitialPending(s);
+          }
           if (s.projectId === data.projectId) {
             return {
               ...s,
-              queueIndex: insertIndex,
+              status: insertAtHead ? ("in_progress" as const) : s.status,
               isPriorityInsert: true,
               priorityReason: data.reason,
+              processedTime: insertAtHead ? 0 : s.processedTime,
+              restartExtra: insertAtHead ? 0 : s.restartExtra,
+              workStartDate: insertAtHead ? timelineToday : s.workStartDate,
+              frozenAt: insertAtHead ? null : s.frozenAt,
+              freezeReason: insertAtHead ? "" : s.freezeReason,
+              freezeNote: insertAtHead ? "" : s.freezeNote,
+              freezeByPriority: insertAtHead ? false : s.freezeByPriority,
+              freezeByIncident: insertAtHead ? false : s.freezeByIncident,
+              lastProgressUpdate: insertAtHead ? new Date().toISOString() : s.lastProgressUpdate,
             };
-          }
-          if (s.owner === owner && s.queueIndex >= insertIndex && s.projectId !== data.projectId) {
-            return { ...s, queueIndex: s.queueIndex + 10 };
           }
           return s;
         });
 
-        if (data.freezeCurrent) {
+        if (data.freezeCurrent && !insertAtHead) {
           const inProgress = orderStates.find(
             (s) => s.owner === owner && s.status === "in_progress"
           );
@@ -628,7 +699,16 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
           }
         }
 
-        return { ...prev, orderStates };
+        return {
+          ...prev,
+          orderStates: reindexOwnerQueue(orderStates, owner, newOrder),
+          memberWorkStarts: insertAtHead
+            ? {
+                ...prev.memberWorkStarts,
+                [owner]: timelineToday,
+              }
+            : prev.memberWorkStarts,
+        };
       },
       {
         action: "priority_insert",
@@ -638,8 +718,9 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
         affectedCount: 3,
       }
     );
+    restartFlowRun();
     setModal(null);
-    showToast("插单成功，后续订单已顺延");
+    showToast("插单成功，时间流已重新计算");
   };
 
   const handleFreeze = (data: {
@@ -784,40 +865,63 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
 
   const handleSetInProgress = (startDate: string, processedTime: number) => {
     if (!selectedProject || !canManageOwner(selectedProject.owner)) return;
+    const normalizedStartDate = startDate < timelineToday ? timelineToday : startDate;
     const k = roundTimelineTenth(
       Math.max(0, Math.min(selectedProject.estimatedDays, processedTime))
     );
     updatePersisted(
-      (prev) => ({
-        ...prev,
-        orderStates: prev.orderStates.map((s) => {
-          if (s.owner === selectedProject.owner && s.status === "in_progress") {
+      (prev) => {
+        const owner = selectedProject.owner;
+        const states = sortOwnerQueueStates(
+          prev.orderStates.filter((s) => s.owner === owner && s.status !== "complete")
+        );
+        const newOrder = [
+          selectedProject.id,
+          ...states.map((s) => s.projectId).filter((id) => id !== selectedProject.id),
+        ];
+        const orderStates = prev.orderStates.map((s) => {
+          if (
+            s.owner === owner &&
+            s.status === "in_progress" &&
+            s.projectId !== selectedProject.id
+          ) {
             return resetToInitialPending(s);
           }
           if (s.projectId === selectedProject.id) {
             return {
               ...s,
-              status: "in_progress",
-              workStartDate: startDate,
+              status: "in_progress" as const,
+              workStartDate: normalizedStartDate,
               processedTime: k,
+              restartExtra: 0,
+              frozenAt: null,
+              freezeReason: "",
+              freezeNote: "",
+              freezeByPriority: false,
+              freezeByIncident: false,
               lastProgressUpdate: new Date().toISOString(),
             };
           }
           return s;
-        }),
-        memberWorkStarts: {
-          ...prev.memberWorkStarts,
-          [selectedProject.owner]: startDate,
-        },
-      }),
+        });
+        return {
+          ...prev,
+          orderStates: reindexOwnerQueue(orderStates, owner, newOrder),
+          memberWorkStarts: {
+            ...prev.memberWorkStarts,
+            [owner]: normalizedStartDate,
+          },
+        };
+      },
       {
         action: "set_work_start",
         before: selectedProject.contractNo,
-        after: `${startDate}, k=${k}`,
+        after: `${normalizedStartDate}, k=${k}`,
         reason: "标记当前处理订单",
         affectedCount: 1,
       }
     );
+    restartFlowRun();
     showToast("已标记为正在处理");
   };
 
@@ -940,6 +1044,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
           onFocusOwner={handleFocusOwner}
           scrollToOwner={scrollToOwner}
           scrollToProjectId={scrollToProjectId}
+          flowRunVersion={flowRunVersion}
           filters={{
             onlyDelayed,
             onlyPriority,
@@ -984,6 +1089,10 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
         onMoveTop={() =>
           selectedBlock?.projectId &&
           reorderOwnerQueue(selectedBlock.owner, selectedBlock.projectId, "top")
+        }
+        onMoveBottom={() =>
+          selectedBlock?.projectId &&
+          reorderOwnerQueue(selectedBlock.owner, selectedBlock.projectId, "bottom")
         }
         onUnmarkInProgress={handleUnmarkInProgress}
         onUpdateProcessedTime={handleUpdateProcessedTime}

@@ -46,7 +46,6 @@ function blockStyle(block: ScheduledBlock): string {
   if (block.status === "complete") return "timeline-bar-complete";
   if (block.status === "in_progress") return "timeline-bar-active";
   if (block.isFrozen) return "timeline-bar-frozen";
-  if (block.isPriorityInsert) return "timeline-bar-priority";
   if (block.isDelayed) return "timeline-bar-delayed";
   return "timeline-bar-pending";
 }
@@ -120,6 +119,7 @@ interface Props {
   onFocusOwner?: (owner: string) => void;
   scrollToOwner: string | null;
   scrollToProjectId: string | null;
+  flowRunVersion: number;
   filters: FilterState;
   weeklyWeeks?: { weekStart: string; label: string; config: MemberWorkdayConfig }[];
   canEditWorkday?: boolean;
@@ -204,12 +204,14 @@ function RowFlowArrow({
   windows,
   flowStartPct,
   flowEndPct,
+  flowRunVersion,
 }: {
   rowIndex: number;
   rowCount: number;
   windows: FlowWindow[];
   flowStartPct: number;
   flowEndPct: number;
+  flowRunVersion: number;
 }) {
   const slotCount = Math.min(Math.max(rowCount, 1), 10);
   const animationName = `timeline-row-flow-slot-${slotCount}`;
@@ -218,7 +220,7 @@ function RowFlowArrow({
     <>
       {windows.map((window) => (
         <div
-          key={window.key}
+          key={`${flowRunVersion}-${window.key}`}
           className="timeline-row-flow-track timeline-row-flow-track--expanded"
           aria-hidden="true"
           style={{
@@ -284,7 +286,7 @@ function SliceBlockButton({
   const { top, height } = getSliceBarGeometry(stack);
   const showProgress =
     block.kind === "order" &&
-    (block.status === "in_progress" || block.isFrozen) &&
+    block.status !== "complete" &&
     block.processedTime > 0 &&
     block.estimatedDays > 0;
   const progressFill = showProgress
@@ -349,6 +351,7 @@ function DateSegmentRow({
   onSelectBlock,
   flowRowIndex,
   flowRowCount,
+  flowRunVersion,
 }: {
   segment: DateSegment;
   blocks: ScheduledBlock[];
@@ -358,6 +361,7 @@ function DateSegmentRow({
   onSelectBlock: (block: ScheduledBlock) => void;
   flowRowIndex: number;
   flowRowCount: number;
+  flowRunVersion: number;
 }) {
   const slices = getBlocksForSegment(blocks, segment);
   const stackMap = useMemo(() => assignOverlapStack(slices), [slices]);
@@ -446,6 +450,7 @@ function DateSegmentRow({
             windows={flowBounds.windows}
             flowStartPct={flowBounds.startPct}
             flowEndPct={flowBounds.endPct}
+            flowRunVersion={flowRunVersion}
           />
         ) : null}
       </div>
@@ -592,7 +597,7 @@ function CompactOwnerRow({
               block.kind === "order" ? compactOverviewBlockLabel(block.label) : block.label;
             const showProgress =
               block.kind === "order" &&
-              (block.status === "in_progress" || block.isFrozen) &&
+              block.status !== "complete" &&
               block.processedTime > 0 &&
               block.estimatedDays > 0;
             const progressFill = showProgress
@@ -676,6 +681,7 @@ export function TimelineGantt({
   onFocusOwner,
   scrollToOwner,
   scrollToProjectId,
+  flowRunVersion,
   filters,
   weeklyWeeks,
   canEditWorkday = false,
@@ -833,6 +839,7 @@ export function TimelineGantt({
                   onSelectBlock={onSelectBlock}
                   flowRowIndex={activeFlowSegmentIndexes.indexOf(segment.index)}
                   flowRowCount={activeFlowSegmentIndexes.length}
+                  flowRunVersion={flowRunVersion}
                 />
               ))}
             </div>

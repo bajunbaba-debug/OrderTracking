@@ -37,7 +37,11 @@ export {
 } from "./workdays";
 export { calendarDaysBetween } from "./workdays";
 export { daysBetween } from "@/lib/calculations";
-export { roundTimelineTenth, resetToInitialPending } from "./order-state";
+export {
+  roundTimelineTenth,
+  resetToInitialPending,
+  unmarkInProgressKeepProcessedTime,
+} from "./order-state";
 export { splitDateRange } from "./date-segments";
 
 function getQueuePosition(
@@ -65,12 +69,12 @@ export function effectiveDuration(
   if (!state) return estimatedDays;
   const k = roundTimelineTenth(Math.max(0, Math.min(estimatedDays, state.processedTime)));
 
-  if (state.status === "in_progress") {
-    return roundTimelineTenth(Math.max(0, estimatedDays - k));
-  }
   if (state.status === "frozen" || state.restartExtra > 0) {
     const q = roundTimelineTenth(Math.max(0, state.restartExtra));
     return roundTimelineTenth(Math.max(0, q + estimatedDays - k));
+  }
+  if (state.status === "in_progress" || k > 0) {
+    return roundTimelineTenth(Math.max(0, estimatedDays - k));
   }
   return estimatedDays;
 }
@@ -532,17 +536,19 @@ export function getDateRange(
   end: string;
   totalDays: number;
 } {
+  let min = timelineStart;
   let max = timelineStart;
 
   for (const blocks of schedules.values()) {
     for (const b of blocks) {
+      if (b.startDate < min) min = b.startDate;
       if (b.endDate > max) max = b.endDate;
     }
   }
 
-  const span = Math.max(21, calendarDaysBetween(timelineStart, max) + 7);
-  const end = addCalendarDays(timelineStart, span - 1);
-  return { start: timelineStart, end, totalDays: span };
+  const span = Math.max(21, calendarDaysBetween(min, max) + 7);
+  const end = addCalendarDays(min, span - 1);
+  return { start: min, end, totalDays: span };
 }
 
 export function projectToTimelineBase(p: {

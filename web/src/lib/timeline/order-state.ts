@@ -39,3 +39,21 @@ export function resetToInitialPending(state: TimelineOrderState): TimelineOrderS
     lastProgressUpdate: null,
   };
 }
+
+/** 顺序调整导致取消处理中时，保留已处理时间 k 以维持色块剩余时长和进度覆盖 */
+export function unmarkInProgressKeepProcessedTime(
+  state: TimelineOrderState
+): TimelineOrderState {
+  return {
+    ...state,
+    status: "pending",
+    restartExtra: 0,
+    workStartDate: null,
+    frozenAt: null,
+    freezeReason: "",
+    freezeNote: "",
+    freezeByPriority: false,
+    freezeByIncident: false,
+    restartNote: "",
+  };
+}

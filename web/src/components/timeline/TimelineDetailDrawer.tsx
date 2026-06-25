@@ -31,6 +31,7 @@ interface Props {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onMoveTop: () => void;
+  onMoveBottom: () => void;
   onUnmarkInProgress: () => void;
   onUpdateProcessedTime: (processedTime: number) => void;
   onOpenMarkInProgress: () => void;
@@ -58,6 +59,7 @@ export function TimelineDetailDrawer({
   onMoveUp,
   onMoveDown,
   onMoveTop,
+  onMoveBottom,
   onUnmarkInProgress,
   onUpdateProcessedTime,
   onOpenMarkInProgress,
@@ -205,6 +207,9 @@ export function TimelineDetailDrawer({
                 </ActionBtn>
                 <ActionBtn disabled={isFrozen} onClick={onMoveTop}>
                   置顶
+                </ActionBtn>
+                <ActionBtn disabled={isFrozen} onClick={onMoveBottom}>
+                  置底
                 </ActionBtn>
               </div>
               <p className="text-xs font-medium text-slate-700">处理操作</p>
