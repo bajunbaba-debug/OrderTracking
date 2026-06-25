@@ -59,7 +59,7 @@ function MarkCompleteModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
@@ -225,17 +225,17 @@ function ProjectsPageInner() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
+      <div className="mb-4 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-4">
         <input
           placeholder="搜索合同号 / 项目名 / 型号"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+          className="min-w-[180px] flex-[2] rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
           value={designStatus}
           onChange={(e) => setDesignStatus(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-[120px] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">全部设计状态</option>
           <option value="incomplete">未完成</option>
@@ -244,7 +244,7 @@ function ProjectsPageInner() {
         <select
           value={owner}
           onChange={(e) => setOwner(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-[120px] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">全部负责人</option>
           {owners.map((o) => (
@@ -256,7 +256,7 @@ function ProjectsPageInner() {
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-[120px] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">全部类型</option>
           {types.map((t) => (
@@ -268,7 +268,7 @@ function ProjectsPageInner() {
         <select
           value={dueBucket}
           onChange={(e) => setDueBucket(e.target.value)}
-          className="rounded border border-slate-300 px-3 py-2 text-sm md:col-span-1"
+          className="min-w-[120px] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">全部交期区间</option>
           <option value="已超期">已超期</option>
@@ -279,106 +279,110 @@ function ProjectsPageInner() {
         </select>
       </div>
 
-      {loading ? (
-        <EmptyState message="加载中..." />
-      ) : fetchError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-          <p className="text-sm text-red-700">{fetchError}</p>
-          <button
-            type="button"
-            onClick={() => setLoadedQuery(null)}
-            className="mt-3 rounded border border-red-300 px-4 py-2 text-sm text-red-800 hover:bg-red-100"
-          >
-            重试
-          </button>
-        </div>
-      ) : items.length === 0 ? (
-        <EmptyState message="暂无项目明细，请先导入 Excel 或新增明细。" />
-      ) : (
-        <TableWrap>
-          <thead>
-            <tr>
-              <th className={TH}>类型</th>
-              <th className={TH}>合同号</th>
-              <th className={TH}>项目名称</th>
-              <th className={TH}>型号</th>
-              <th className={TH}>负责人</th>
-              <th className={TH}>状态</th>
-              <th className={TH}>交期</th>
-              <th className={TH_NUM}>预计(工作日)</th>
-              <th className={TH}>风险</th>
-              <th className={TH}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className={TD}><DisplayText value={item.type} /></td>
-                <td className={TD}><DisplayText value={item.contractNo} /></td>
-                <td className={`max-w-[220px] ${TD}`}>
-                  <span className="line-clamp-2" title={item.projectName || undefined}>
-                    <DisplayText value={item.projectName} />
-                  </span>
-                </td>
-                <td className={TD}><DisplayText value={item.model} /></td>
-                <td className={TD}><DisplayText value={item.owner} /></td>
-                <td className={TD}>
-                  <div>{DESIGN_STATUS_LABELS[item.designStatus] ?? item.designStatus}</div>
-                  {item.designStatus === "complete" && item.designCompleteDate ? (
-                    <div className="text-xs text-slate-500">
-                      完成：{formatDate(item.designCompleteDate)}
-                    </div>
-                  ) : null}
-                </td>
-                <td className={TD}>
-                  <div><DisplayDate value={item.dueDate} /></div>
-                  <span
-                    className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${
-                      DUE_BUCKET_COLORS[item.dueBucket] ?? ""
-                    }`}
-                  >
-                    {item.dueBucket}
-                  </span>
-                </td>
-                <td className={TD_NUM}><DisplayNumber value={item.totalComplexity} /></td>
-                <td className={TD}>
-                  <RiskBadge level={item.riskLevel} />
-                </td>
-                <td className={`whitespace-nowrap ${TD}`}>
-                  {canWrite ? (
-                    <>
-                      <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
-                        编辑
-                      </Link>
-                      {item.designStatus === "incomplete" ? (
-                        <>
-                          {" · "}
-                          <button
-                            onClick={() => setCompleteTarget(item)}
-                            className="text-sm text-green-700"
-                          >
-                            标记完成
-                          </button>
-                        </>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-sm text-slate-400">只读</span>
-                  )}
-                </td>
+      <div className="relative h-[calc(100vh-14rem)]">
+        <div className="h-full overflow-y-auto">
+          {loading ? (
+            <EmptyState message="加载中..." />
+          ) : fetchError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+              <p className="text-sm text-red-700">{fetchError}</p>
+              <button
+                type="button"
+                onClick={() => setLoadedQuery(null)}
+                className="mt-3 rounded border border-red-300 px-4 py-2 text-sm text-red-800 hover:bg-red-100"
+              >
+                重试
+              </button>
+            </div>
+          ) : items.length === 0 ? (
+            <EmptyState message="暂无项目明细，请先导入 Excel 或新增明细。" />
+          ) : (
+            <TableWrap>
+            <thead>
+              <tr>
+                <th className={TH}>类型</th>
+                <th className={TH}>合同号</th>
+                <th className={TH}>项目名称</th>
+                <th className={TH}>型号</th>
+                <th className={TH}>负责人</th>
+                <th className={TH}>状态</th>
+                <th className={TH}>交期</th>
+                <th className={TH_NUM}>预计(工作日)</th>
+                <th className={TH}>风险</th>
+                <th className={TH}>操作</th>
               </tr>
-            ))}
-          </tbody>
-        </TableWrap>
-      )}
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td className={TD}><DisplayText value={item.type} /></td>
+                  <td className={TD}><DisplayText value={item.contractNo} /></td>
+                  <td className={`max-w-[220px] ${TD}`}>
+                    <span className="line-clamp-2" title={item.projectName || undefined}>
+                      <DisplayText value={item.projectName} />
+                    </span>
+                  </td>
+                  <td className={TD}><DisplayText value={item.model} /></td>
+                  <td className={TD}><DisplayText value={item.owner} /></td>
+                  <td className={TD}>
+                    <div>{DESIGN_STATUS_LABELS[item.designStatus] ?? item.designStatus}</div>
+                    {item.designStatus === "complete" && item.designCompleteDate ? (
+                      <div className="text-xs text-slate-500">
+                        完成：{formatDate(item.designCompleteDate)}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className={TD}>
+                    <div><DisplayDate value={item.dueDate} /></div>
+                    <span
+                      className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${
+                        DUE_BUCKET_COLORS[item.dueBucket] ?? ""
+                      }`}
+                    >
+                      {item.dueBucket}
+                    </span>
+                  </td>
+                  <td className={TD_NUM}><DisplayNumber value={item.totalComplexity} /></td>
+                  <td className={TD}>
+                    <RiskBadge level={item.riskLevel} />
+                  </td>
+                  <td className={`whitespace-nowrap ${TD}`}>
+                    {canWrite ? (
+                      <>
+                        <Link href={`/projects/${item.id}/edit`} className="text-sm text-blue-700">
+                          编辑
+                        </Link>
+                        {item.designStatus === "incomplete" ? (
+                          <>
+                            {" · "}
+                            <button
+                              onClick={() => setCompleteTarget(item)}
+                              className="text-sm text-green-700"
+                            >
+                              标记完成
+                            </button>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-sm text-slate-400">只读</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            </TableWrap>
+          )}
+        </div>
 
-      {completeTarget && canWrite ? (
-        <MarkCompleteModal
-          projectName={completeTarget.projectName}
-          onConfirm={(date) => void confirmMarkComplete(date)}
-          onCancel={() => setCompleteTarget(null)}
-        />
-      ) : null}
+        {completeTarget && canWrite ? (
+          <MarkCompleteModal
+            projectName={completeTarget.projectName}
+            onConfirm={(date) => void confirmMarkComplete(date)}
+            onCancel={() => setCompleteTarget(null)}
+          />
+        ) : null}
+      </div>
     </>
   );
 }

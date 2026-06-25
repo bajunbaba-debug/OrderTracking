@@ -8,9 +8,9 @@ import { AuthBar } from "@/components/timeline/AuthBar";
 
 const NAV_ITEMS = [
   { href: "/", label: "总览" },
+  { href: "/timeline", label: "订单时间流", match: ["/timeline", "/risks"] },
   { href: "/projects", label: "明细" },
   { href: "/members", label: "分析", match: ["/members", "/contracts", "/types"] },
-  { href: "/timeline", label: "订单时间流", match: ["/timeline", "/risks"] },
 ];
 
 function isNavActive(pathname: string, item: (typeof NAV_ITEMS)[number]) {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth/context";
+import { formatNumber } from "@/lib/format";
 import type { ProjectFormValues } from "@/lib/project-form";
 import { parseProjectBody } from "@/lib/project-input";
 import { formatValidationErrors, validateProjectRow } from "@/lib/project-validation";
@@ -18,6 +19,183 @@ interface DictionaryMap {
   solutionOwner?: string[];
   remark?: string[];
   sales?: string[];
+}
+
+type OwnerRankingRow = {
+  owner: string;
+  count: number;
+  complexity: number;
+};
+
+function mergeOptionList(options: string[] | undefined, currentValue: string): string[] {
+  const merged = [...(options ?? [])];
+  const trimmed = currentValue.trim();
+  if (trimmed && !merged.includes(trimmed)) {
+    merged.unshift(trimmed);
+  }
+  return merged;
+}
+
+function OwnerWorkloadPopover({
+  rows,
+  currentOwner,
+}: {
+  rows: OwnerRankingRow[];
+  currentOwner: string;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 z-30 mb-1 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+      <div className="mb-1.5 text-xs font-semibold text-slate-700">成员负载排行（未完成）</div>
+      <table className="w-full table-fixed text-[11px]">
+        <thead>
+          <tr className="border-b border-slate-200 text-slate-500">
+            <th className="px-1 py-0.5 text-left font-medium">负责人</th>
+            <th className="px-1 py-0.5 text-center font-medium">条数</th>
+            <th className="px-1 py-0.5 text-center font-medium">工作日</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const active = currentOwner.trim() === row.owner;
+            return (
+              <tr
+                key={row.owner}
+                className={active ? "bg-amber-50 font-semibold text-amber-900" : "text-slate-800"}
+              >
+                <td className="px-1 py-0.5 break-words">{row.owner}</td>
+                <td className="px-1 py-0.5 text-center tabular-nums">{row.count}</td>
+                <td className="px-1 py-0.5 text-center tabular-nums">
+                  {formatNumber(row.complexity)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SelectOrInput({
+  label,
+  name,
+  value,
+  options,
+  onChange,
+  manageLabel,
+  onManage,
+  readOnly = false,
+  showOwnerWorkload = false,
+  ownerWorkloadRows = [],
+}: {
+  label: string;
+  name: keyof ProjectFormValues;
+  value: string;
+  options?: string[];
+  onChange: (name: keyof ProjectFormValues, value: string) => void;
+  manageLabel?: string;
+  onManage?: () => void;
+  readOnly?: boolean;
+  showOwnerWorkload?: boolean;
+  ownerWorkloadRows?: OwnerRankingRow[];
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [showAllOptions, setShowAllOptions] = useState(false);
+
+  const allOptions = useMemo(() => mergeOptionList(options, value), [options, value]);
+
+  const visibleOptions = useMemo(() => {
+    if (showAllOptions || !value.trim()) return allOptions;
+    const query = value.trim().toLowerCase();
+    return allOptions.filter((option) => option.toLowerCase().includes(query));
+  }, [allOptions, value, showAllOptions]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!wrapRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setShowAllOptions(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  function openDropdown() {
+    if (readOnly) return;
+    setOpen(true);
+    setShowAllOptions(true);
+  }
+
+  function pickOption(option: string) {
+    onChange(name, option);
+    setOpen(false);
+    setShowAllOptions(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="relative block">
+      {showOwnerWorkload && open ? (
+        <OwnerWorkloadPopover rows={ownerWorkloadRows} currentOwner={value} />
+      ) : null}
+      <label className="block">
+        <span className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-500">
+          <span>{label}</span>
+          {onManage && !readOnly ? (
+            <button type="button" onClick={onManage} className="text-blue-700 hover:underline">
+              {manageLabel ?? "管理选项"}
+            </button>
+          ) : null}
+        </span>
+        <input
+          value={value}
+          disabled={readOnly}
+          onFocus={openDropdown}
+          onClick={openDropdown}
+          onChange={(e) => {
+            onChange(name, e.target.value);
+            setShowAllOptions(false);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setOpen(false);
+              setShowAllOptions(false);
+            }
+          }}
+          className={INPUT_CLASS}
+          placeholder={allOptions.length > 0 ? "可选择或手动输入" : undefined}
+          autoComplete="off"
+        />
+      </label>
+      {open && !readOnly && visibleOptions.length > 0 ? (
+        <ul
+          className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+          role="listbox"
+        >
+          {visibleOptions.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={option === value}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100 ${
+                  option === value ? "bg-slate-50 font-medium text-slate-900" : "text-slate-700"
+                }`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickOption(option)}
+              >
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 const EMPTY_FORM: ProjectFormValues = {
@@ -38,56 +216,6 @@ const EMPTY_FORM: ProjectFormValues = {
   commonRemark: "",
   extraRemark: "",
 };
-
-function SelectOrInput({
-  label,
-  name,
-  value,
-  options,
-  onChange,
-  manageLabel,
-  onManage,
-  readOnly = false,
-}: {
-  label: string;
-  name: keyof ProjectFormValues;
-  value: string;
-  options?: string[];
-  onChange: (name: keyof ProjectFormValues, value: string) => void;
-  manageLabel?: string;
-  onManage?: () => void;
-  readOnly?: boolean;
-}) {
-  const listId = `dict-${name}`;
-
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-500">
-        <span>{label}</span>
-        {onManage && !readOnly ? (
-          <button type="button" onClick={onManage} className="text-blue-700 hover:underline">
-            {manageLabel ?? "管理选项"}
-          </button>
-        ) : null}
-      </span>
-      <input
-        list={options && options.length > 0 ? listId : undefined}
-        value={value}
-        disabled={readOnly}
-        onChange={(e) => onChange(name, e.target.value)}
-        className={INPUT_CLASS}
-        placeholder={options && options.length > 0 ? "可选择或手动输入" : undefined}
-      />
-      {options && options.length > 0 ? (
-        <datalist id={listId}>
-          {options.map((opt) => (
-            <option key={opt} value={opt} />
-          ))}
-        </datalist>
-      ) : null}
-    </label>
-  );
-}
 
 type DictionaryTab = "type" | "typeDetail" | "remark" | "owner";
 
@@ -324,6 +452,7 @@ export function ProjectForm({
   const [error, setError] = useState("");
   const [dictOpen, setDictOpen] = useState(false);
   const [dictTab, setDictTab] = useState<DictionaryTab>("type");
+  const [ownerWorkloadRows, setOwnerWorkloadRows] = useState<OwnerRankingRow[]>([]);
 
   function openDictManager(tab: DictionaryTab) {
     setDictTab(tab);
@@ -340,6 +469,15 @@ export function ProjectForm({
   useEffect(() => {
     loadDict();
   }, [loadDict]);
+
+  useEffect(() => {
+    fetch("/api/dashboard")
+      .then((response) => response.json())
+      .then((data: { ownerRanking?: OwnerRankingRow[] }) => {
+        setOwnerWorkloadRows((data.ownerRanking ?? []).slice(0, 8));
+      })
+      .catch(() => setOwnerWorkloadRows([]));
+  }, []);
 
   const typeDetailOptions = useMemo(() => {
     if (!form.type) return dict.typeDetail ?? [];
@@ -516,6 +654,8 @@ export function ProjectForm({
             onChange={update}
             readOnly={!canWrite}
             onManage={canWrite ? () => openDictManager("owner") : undefined}
+            showOwnerWorkload
+            ownerWorkloadRows={ownerWorkloadRows}
           />
           <label className="block">
             <span className="mb-1 block text-xs text-slate-500">预计(工作日)</span>
