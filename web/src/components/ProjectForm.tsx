@@ -8,6 +8,8 @@ import type { ProjectFormValues } from "@/lib/project-form";
 import { parseProjectBody } from "@/lib/project-input";
 import { formatValidationErrors, validateProjectRow } from "@/lib/project-validation";
 
+const COMMON_REMARK_CATEGORY = "commonRemark";
+
 const INPUT_CLASS =
   "w-full rounded border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600";
 
@@ -17,7 +19,7 @@ interface DictionaryMap {
   typeDetailByType?: Record<string, string[]>;
   owner?: string[];
   solutionOwner?: string[];
-  remark?: string[];
+  commonRemark?: string[];
   sales?: string[];
 }
 
@@ -217,7 +219,7 @@ const EMPTY_FORM: ProjectFormValues = {
   extraRemark: "",
 };
 
-type DictionaryTab = "type" | "typeDetail" | "remark" | "owner";
+type DictionaryTab = "type" | "typeDetail" | "commonRemark" | "owner";
 
 function DictionaryManager({
   dict,
@@ -247,7 +249,7 @@ function DictionaryManager({
     setBusy(true);
     setError("");
     try {
-      const category = tab === "remark" ? "remark" : tab;
+      const category = tab === "commonRemark" ? COMMON_REMARK_CATEGORY : tab;
       const body: Record<string, string> = { category, value };
       if (tab === "typeDetail") {
         if (!parentType.trim()) {
@@ -278,7 +280,7 @@ function DictionaryManager({
     setBusy(true);
     setError("");
     try {
-      const category = tab === "remark" ? "remark" : tab;
+      const category = tab === "commonRemark" ? COMMON_REMARK_CATEGORY : tab;
       const params = new URLSearchParams({ category, value, parentValue });
       const res = await fetch(`/api/dictionaries?${params}`, { method: "DELETE" });
       const data = await res.json();
@@ -292,7 +294,7 @@ function DictionaryManager({
   }
 
   const typeList = dict.type ?? [];
-  const remarkList = dict.remark ?? [];
+  const remarkList = dict.commonRemark ?? [];
   const ownerList = dict.owner ?? [];
   const detailList =
     tab === "typeDetail" && parentType
@@ -328,7 +330,7 @@ function DictionaryManager({
               ["type", "类型"],
               ["typeDetail", "类型细化"],
               ["owner", "负责人"],
-              ["remark", "常用备注"],
+              ["commonRemark", "常用备注"],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -391,7 +393,7 @@ function DictionaryManager({
         <ul className="divide-y divide-slate-100 rounded border border-slate-200">
           {(tab === "type"
             ? typeList
-            : tab === "remark"
+            : tab === "commonRemark"
               ? remarkList
               : tab === "owner"
                 ? ownerList
@@ -415,7 +417,7 @@ function DictionaryManager({
           ))}
           {(tab === "type"
             ? typeList
-            : tab === "remark"
+            : tab === "commonRemark"
               ? remarkList
               : tab === "owner"
                 ? ownerList
@@ -688,10 +690,10 @@ export function ProjectForm({
             label="常用备注"
             name="commonRemark"
             value={form.commonRemark}
-            options={dict.remark}
+            options={dict.commonRemark}
             onChange={update}
             readOnly={!canWrite}
-            onManage={canWrite ? () => openDictManager("remark") : undefined}
+            onManage={canWrite ? () => openDictManager("commonRemark") : undefined}
           />
           <label className="block md:col-span-2">
             <span className="mb-1 block text-xs text-slate-500">额外备注</span>

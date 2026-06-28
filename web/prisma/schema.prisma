@@ -10,6 +10,9 @@ datasource db {
 model ProjectItem {
   id                    String    @id @default(cuid())
   sourceRowNumber       Int?
+  externalSource      String    @default("")
+  externalTaskId      String    @default("")
+  externalDetailId    String    @default("")
   type                  String    @default("")
   typeDetail            String    @default("")
   contractNo            String    @default("")
@@ -43,6 +46,8 @@ model ProjectItem {
   qualityIssues         String    @default("[]")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+
+  @@index([externalSource, externalTaskId, externalDetailId])
 }
 
 model Dictionary {

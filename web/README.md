@@ -54,3 +54,75 @@ npm run start:lan
 
 - `DATABASE_URL`：SQLite 路径
 - `STATS_DATE`：统计基准日期，默认 `2026-06-18`
+
+## ReviewOrderWorkflow 集成 API
+
+B 站提供两个接口给 ReviewOrderWorkflow 使用，主路线应通过 API 对接，页面自动化只作为 fallback。
+
+### GET /api/integration/review-options
+
+返回审核端下拉选项，字段名已对齐 ReviewOrderWorkflow：
+
+```json
+{
+  "ok": true,
+  "types": [],
+  "typeDetails": [],
+  "typeDetailByType": {},
+  "owners": [],
+  "commonRemarks": []
+}
+```
+
+来源为启用的 Dictionary 项：`type` -> `types`，`typeDetail` -> `typeDetails/typeDetailByType`，`owner` -> `owners`，`commonRemark` -> `commonRemarks`。兼容旧的 `remark` 分类。
+
+### POST /api/integration/review-details
+
+批量写入审核明细到 `ProjectItem`。写入接口需要登录写权限；生产服务间调用建议配置 `INTEGRATION_API_TOKEN`，请求时使用 `Authorization: Bearer <token>` 或 `x-integration-api-token`。
+
+请求示例：
+
+```json
+{
+  "source": "ReviewOrderWorkflow",
+  "taskId": "task-id",
+  "contractNo": "HT-001",
+  "projectName": "项目名称",
+  "publishDate": "2026-06-27",
+  "applicationDate": "2026-06-27",
+  "deliveryDate": "2026-07-10",
+  "details": [
+    {
+      "id": "detail-id",
+      "type": "机组",
+      "typeDetail": "手动复位",
+      "owner": "张三",
+      "estimate": "2",
+      "commonRemark": "常规",
+      "approvalRemark": "审批备注",
+      "itemName": "明细名称",
+      "model": "规格型号",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+字段映射：`type/typeDetail/owner/commonRemark` 来自明细；`contractNo/projectName/publishDate/dueDate` 来自顶层；`estimatedComplexity` 来自 `estimate`；`extraRemark` 来自 `approvalRemark` 或 `itemName`；`quantity` 缺失时默认 1 并返回 warning。
+
+响应逐条返回结果：
+
+```json
+{
+  "ok": true,
+  "created": 1,
+  "updated": 0,
+  "failed": 0,
+  "results": [
+    { "detailId": "detail-id", "projectId": "...", "status": "created", "message": "已创建 B 站项目明细" }
+  ],
+  "warnings": []
+}
+```
+
+幂等字段为 `externalSource + externalTaskId + externalDetailId`。重复提交同一明细会更新现有项目；缺少外部 ID 时，会按合同号、类型、类型细化、负责人、常用备注和额外备注做 fallback 查重。

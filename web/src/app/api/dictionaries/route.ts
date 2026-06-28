@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertCanWriteApi } from "@/lib/auth/server";
 import { prisma } from "@/lib/prisma";
-import { getDictionaries } from "@/lib/analytics";
+import { dictionaryCategoryWriteTargets, getDictionaries, normalizeDictionaryCategory } from "@/lib/dictionary";
 
 export async function GET() {
   return NextResponse.json(await getDictionaries());
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     value: string;
     parentValue?: string;
   };
-  const category = String(body.category ?? "").trim();
+  const category = normalizeDictionaryCategory(String(body.category ?? "").trim());
   const value = String(body.value ?? "").trim();
   const parentValue = String(body.parentValue ?? "").trim();
 
@@ -25,13 +25,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "分类与值不能为空" }, { status: 400 });
   }
 
+  const categoryTargets = dictionaryCategoryWriteTargets(category);
   const existing = await prisma.dictionary.findFirst({
-    where: { category, value, parentValue },
+    where: { category: { in: categoryTargets }, value, parentValue },
   });
   if (existing) {
     await prisma.dictionary.update({
       where: { id: existing.id },
-      data: { enabled: true },
+      data: { category, enabled: true },
     });
   } else {
     const maxOrder = await prisma.dictionary.aggregate({
@@ -67,7 +68,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   await prisma.dictionary.updateMany({
-    where: { category, value, parentValue },
+    where: { category: { in: dictionaryCategoryWriteTargets(category) }, value, parentValue },
     data: { enabled: false },
   });
 

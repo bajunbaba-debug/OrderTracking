@@ -88,7 +88,7 @@ function computeIntegerPercents(data: PieDatum[]): number[] {
 
   const raw = data.map((item) => (item.value / total) * 100);
   const floors = raw.map((value) => Math.floor(value));
-  let remainder = 100 - floors.reduce((sum, value) => sum + value, 0);
+  const remainder = 100 - floors.reduce((sum, value) => sum + value, 0);
   const order = raw
     .map((value, index) => ({ index, fraction: value - floors[index]! }))
     .sort((a, b) => b.fraction - a.fraction);

@@ -78,7 +78,7 @@ function parseSheet2(workbook: XLSX.WorkBook): DictionaryEntry[] {
     { key: "类型细化", category: "typeDetail" },
     { key: "负责人", category: "owner" },
     { key: "方案", category: "solutionOwner" },
-    { key: "备注", category: "remark" },
+    { key: "备注", category: "commonRemark" },
     { key: "销售", category: "sales" },
   ];
 

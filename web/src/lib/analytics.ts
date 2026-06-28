@@ -391,28 +391,3 @@ export async function getQualityItems() {
     .filter((i) => i.qualityIssues.length > 0)
     .sort((a, b) => b.qualityIssues.length - a.qualityIssues.length);
 }
-
-export async function getDictionaries() {
-  const items = await prisma.dictionary.findMany({
-    where: { enabled: true },
-    orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
-  });
-  const grouped: Record<string, string[]> = {};
-  const typeDetailByType: Record<string, string[]> = {};
-
-  for (const item of items) {
-    if (item.category === "typeDetail" && item.parentValue) {
-      typeDetailByType[item.parentValue] = typeDetailByType[item.parentValue] ?? [];
-      if (!typeDetailByType[item.parentValue].includes(item.value)) {
-        typeDetailByType[item.parentValue].push(item.value);
-      }
-    } else {
-      grouped[item.category] = grouped[item.category] ?? [];
-      if (!grouped[item.category].includes(item.value)) {
-        grouped[item.category].push(item.value);
-      }
-    }
-  }
-
-  return { ...grouped, typeDetailByType };
-}
