@@ -11,6 +11,7 @@ function toDbPayload(row: RawProjectRow & ReturnType<typeof enrichRow>) {
     type: row.type,
     typeDetail: row.typeDetail,
     contractNo: row.contractNo,
+    productionInstructionNo: row.productionInstructionNo,
     projectName: row.projectName,
     model: row.model,
     quantity: row.quantity,

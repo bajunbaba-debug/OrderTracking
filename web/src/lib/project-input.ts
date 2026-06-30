@@ -6,6 +6,7 @@ export function parseProjectBody(body: Record<string, unknown>): RawProjectRow {
     type: String(body.type ?? "").trim(),
     typeDetail: String(body.typeDetail ?? "").trim(),
     contractNo: String(body.contractNo ?? "").trim(),
+    productionInstructionNo: String(body.productionInstructionNo ?? "").trim(),
     projectName: String(body.projectName ?? "").trim(),
     model: String(body.model ?? "").trim(),
     quantity: body.quantity != null && body.quantity !== "" ? Number(body.quantity) : null,
@@ -34,6 +35,10 @@ export function mergeProjectBody(
     type: body.type !== undefined ? parsed.type : existing.type,
     typeDetail: body.typeDetail !== undefined ? parsed.typeDetail : existing.typeDetail,
     contractNo: body.contractNo !== undefined ? parsed.contractNo : existing.contractNo,
+    productionInstructionNo:
+      body.productionInstructionNo !== undefined
+        ? parsed.productionInstructionNo
+        : existing.productionInstructionNo,
     projectName: body.projectName !== undefined ? parsed.projectName : existing.projectName,
     model: body.model !== undefined ? parsed.model : existing.model,
     quantity: body.quantity !== undefined ? parsed.quantity : existing.quantity,
@@ -59,6 +64,7 @@ export function dbRecordToRawRow(item: {
   type: string;
   typeDetail: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   quantity: number | null;
@@ -78,6 +84,7 @@ export function dbRecordToRawRow(item: {
     type: item.type,
     typeDetail: item.typeDetail,
     contractNo: item.contractNo,
+    productionInstructionNo: item.productionInstructionNo,
     projectName: item.projectName,
     model: item.model,
     quantity: item.quantity,

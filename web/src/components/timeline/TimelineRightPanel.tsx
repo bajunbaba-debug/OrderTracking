@@ -94,6 +94,8 @@ export function TimelineRightPanel({
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
             <dt className="text-slate-500">订单号</dt>
             <dd><DisplayText value={project.contractNo} /></dd>
+            <dt className="text-slate-500">生产指令单号</dt>
+            <dd><DisplayText value={project.productionInstructionNo} /></dd>
             <dt className="text-slate-500">项目名称</dt>
             <dd><DisplayText value={project.projectName} /></dd>
             <dt className="text-slate-500">型号</dt>

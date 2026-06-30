@@ -3,6 +3,7 @@ export interface RawProjectRow {
   type: string;
   typeDetail: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   quantity: number | null;

@@ -108,8 +108,16 @@ export async function getReviewOptions(): Promise<ReviewOptionsResponse> {
 
   const typeDetailByType =
     Object.keys(typeDetailByTypeRaw).length > 0
-      ? typeDetailByTypeRaw
+      ? { ...typeDetailByTypeRaw }
       : Object.fromEntries(types.map((type) => [type, typeDetails]));
+
+  // 将无 parentValue 的扁平 typeDetail 合并进各类型的允许列表
+  if (dict.typeDetail && dict.typeDetail.length > 0 && types.length > 0) {
+    for (const type of types) {
+      const existing = typeDetailByType[type] ?? [];
+      typeDetailByType[type] = [...new Set([...existing, ...dict.typeDetail])];
+    }
+  }
 
   return {
     ok: true,

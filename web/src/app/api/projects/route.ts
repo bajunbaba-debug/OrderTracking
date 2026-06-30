@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     items = items.filter(
       (i) =>
         i.contractNo.toLowerCase().includes(search) ||
+        i.productionInstructionNo.toLowerCase().includes(search) ||
         i.projectName.toLowerCase().includes(search) ||
         i.model.toLowerCase().includes(search)
     );

@@ -12,6 +12,7 @@ interface ProjectItem {
   id: string;
   type: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   owner: string;
@@ -227,7 +228,7 @@ function ProjectsPageInner() {
 
       <div className="mb-4 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-4">
         <input
-          placeholder="搜索合同号 / 项目名 / 型号"
+          placeholder="搜索合同号 / 生产指令单号 / 项目名 / 型号"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="min-w-[180px] flex-[2] rounded border border-slate-300 px-3 py-2 text-sm"
@@ -302,6 +303,7 @@ function ProjectsPageInner() {
               <tr>
                 <th className={TH}>类型</th>
                 <th className={TH}>合同号</th>
+                <th className={TH}>生产指令单号</th>
                 <th className={TH}>项目名称</th>
                 <th className={TH}>型号</th>
                 <th className={TH}>负责人</th>
@@ -317,6 +319,7 @@ function ProjectsPageInner() {
                 <tr key={item.id}>
                   <td className={TD}><DisplayText value={item.type} /></td>
                   <td className={TD}><DisplayText value={item.contractNo} /></td>
+                  <td className={TD}><DisplayText value={item.productionInstructionNo} /></td>
                   <td className={`max-w-[220px] ${TD}`}>
                     <span className="line-clamp-2" title={item.projectName || undefined}>
                       <DisplayText value={item.projectName} />

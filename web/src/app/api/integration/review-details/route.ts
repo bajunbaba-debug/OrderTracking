@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertCanWriteApi } from "@/lib/auth/server";
+import { getReviewOptions } from "@/lib/dictionary";
 import { parseProjectBody } from "@/lib/project-input";
 import { upsertProject } from "@/lib/project-service";
 import { formatValidationErrors, validateProjectRow } from "@/lib/project-validation";
@@ -23,6 +24,7 @@ type ReviewDetailPayload = {
   itemName?: unknown;
   model?: unknown;
   quantity?: unknown;
+  productionInstructionNo?: unknown;
 };
 
 type ReviewDetailsPayload = {
@@ -33,6 +35,7 @@ type ReviewDetailsPayload = {
   publishDate?: unknown;
   applicationDate?: unknown;
   deliveryDate?: unknown;
+  productionInstructionNo?: unknown;
   details?: unknown;
 };
 
@@ -124,6 +127,7 @@ function buildRow(payload: ReviewDetailsPayload, detail: ReviewDetailPayload, wa
     type: text(detail.type),
     typeDetail: text(detail.typeDetail),
     contractNo: text(payload.contractNo),
+    productionInstructionNo: text(detail.productionInstructionNo) || text(payload.productionInstructionNo),
     projectName,
     model,
     quantity: finalQuantity,
@@ -153,6 +157,14 @@ export async function POST(request: NextRequest) {
 
   const source = text(body.source) || "ReviewOrderWorkflow";
   const taskId = text(body.taskId);
+  const reviewOptions = await getReviewOptions();
+  const dictContext = {
+    types: reviewOptions.types,
+    typeDetails: reviewOptions.typeDetails,
+    typeDetailByType: reviewOptions.typeDetailByType,
+    owners: reviewOptions.owners,
+    commonRemarks: reviewOptions.commonRemarks
+  };
   const warnings: string[] = [];
   const results: ImportResult[] = [];
   let created = 0;
@@ -171,7 +183,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const validation = validateProjectRow(rowOrError);
+      const validation = validateProjectRow(rowOrError, dictContext);
       if (!validation.ok) {
         failed += 1;
         results.push({

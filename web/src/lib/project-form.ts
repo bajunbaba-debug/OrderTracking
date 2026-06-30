@@ -4,6 +4,7 @@ export interface ProjectFormValues {
   type: string;
   typeDetail: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   quantity: string;
@@ -25,6 +26,7 @@ export function projectToFormValues(item: Record<string, unknown>): ProjectFormV
     type: String(item.type ?? ""),
     typeDetail: String(item.typeDetail ?? ""),
     contractNo: String(item.contractNo ?? ""),
+    productionInstructionNo: String(item.productionInstructionNo ?? ""),
     projectName: String(item.projectName ?? ""),
     model: String(item.model ?? ""),
     quantity: item.quantity != null ? String(item.quantity) : "",

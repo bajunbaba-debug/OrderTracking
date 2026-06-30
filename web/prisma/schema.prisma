@@ -16,6 +16,7 @@ model ProjectItem {
   type                  String    @default("")
   typeDetail            String    @default("")
   contractNo            String    @default("")
+  productionInstructionNo String  @default("")
   projectName           String    @default("")
   model                 String    @default("")
   quantity              Float?

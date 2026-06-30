@@ -204,6 +204,7 @@ const EMPTY_FORM: ProjectFormValues = {
   type: "",
   typeDetail: "",
   contractNo: "",
+  productionInstructionNo: "",
   projectName: "",
   model: "",
   quantity: "",
@@ -581,6 +582,13 @@ export function ProjectForm({
             label="合同号"
             name="contractNo"
             value={form.contractNo}
+            onChange={update}
+            readOnly={!canWrite}
+          />
+          <SelectOrInput
+            label="生产指令单号"
+            name="productionInstructionNo"
+            value={form.productionInstructionNo}
             onChange={update}
             readOnly={!canWrite}
           />

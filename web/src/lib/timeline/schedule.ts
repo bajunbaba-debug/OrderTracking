@@ -619,6 +619,7 @@ export function getDateRange(
 export function projectToTimelineBase(p: {
   id: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   type: string;
@@ -632,6 +633,7 @@ export function projectToTimelineBase(p: {
   return {
     id: p.id,
     contractNo: p.contractNo,
+    productionInstructionNo: p.productionInstructionNo,
     projectName: p.projectName,
     model: p.model,
     type: p.type,

@@ -14,6 +14,7 @@ export type TimelineRiskType =
 export interface TimelineProjectBase {
   id: string;
   contractNo: string;
+  productionInstructionNo: string;
   projectName: string;
   model: string;
   type: string;
