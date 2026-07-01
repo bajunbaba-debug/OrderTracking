@@ -622,6 +622,7 @@ export function projectToTimelineBase(p: {
   productionInstructionNo: string;
   projectName: string;
   model: string;
+  quantity?: number | null;
   type: string;
   owner: string;
   dueDate: string | Date | null;
@@ -629,6 +630,8 @@ export function projectToTimelineBase(p: {
   estimatedComplexity?: number | null;
   designStatus: string;
   designCompleteDate: string | Date | null;
+  commonRemark?: string | null;
+  extraRemark?: string | null;
 }): TimelineProjectBase {
   return {
     id: p.id,
@@ -636,12 +639,15 @@ export function projectToTimelineBase(p: {
     productionInstructionNo: p.productionInstructionNo,
     projectName: p.projectName,
     model: p.model,
+    quantity: p.quantity ?? null,
     type: p.type,
     owner: normalizeOwnerKey(p.owner),
     dueDate: p.dueDate ? formatDate(p.dueDate) : null,
     estimatedDays: p.totalComplexity ?? p.estimatedComplexity ?? 0,
     designStatus: p.designStatus,
     designCompleteDate: p.designCompleteDate ? formatDate(p.designCompleteDate) : null,
+    commonRemark: p.commonRemark ?? "",
+    extraRemark: p.extraRemark ?? "",
   };
 }
 

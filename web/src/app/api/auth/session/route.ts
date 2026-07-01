@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   getAdminDisplayName,
   verifyAdminLogin,
+  verifyGuestLogin,
   verifyMemberLogin,
 } from "@/lib/auth/config";
 import {
@@ -35,6 +36,13 @@ export async function POST(req: Request) {
           name: getAdminDisplayName(),
           role: "admin",
           department: "管理部",
+        };
+      } else if (verifyGuestLogin(username, password)) {
+        user = {
+          id: "guest",
+          name: "guest",
+          role: "guest",
+          department: "游客",
         };
       } else {
         const memberRow = await prisma.projectItem.findFirst({

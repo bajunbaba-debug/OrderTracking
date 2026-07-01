@@ -16,21 +16,26 @@ function LoginPageInner() {
 
   useEffect(() => {
     if (!authReady || !user) return;
-    router.replace(from.startsWith("/") && !from.startsWith("/login") ? from : "/");
+    const fallbackTarget = user.role === "guest" ? "/guest-export" : "/";
+    router.replace(from.startsWith("/") && !from.startsWith("/login") ? from : fallbackTarget);
   }, [authReady, user, from, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-    const err = await login(username.trim(), password);
+    const trimmedUsername = username.trim();
+    const err = await login(trimmedUsername, password);
     if (err) {
       setError(err);
       setSubmitting(false);
       return;
     }
     setPassword("");
-    router.replace(from.startsWith("/") && !from.startsWith("/login") ? from : "/");
+    const isGuestLogin = trimmedUsername === "guest";
+    const requestedTarget = from.startsWith("/") && !from.startsWith("/login") ? from : "/";
+    const target = isGuestLogin && requestedTarget !== "/guest-export" ? "/guest-export" : requestedTarget;
+    router.replace(isGuestLogin ? target : requestedTarget);
     router.refresh();
     setSubmitting(false);
   }

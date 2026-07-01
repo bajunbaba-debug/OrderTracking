@@ -6,10 +6,25 @@ function isPublicPath(pathname: string): boolean {
   return pathname === "/login" || pathname.startsWith("/api/auth/session");
 }
 
+function readSessionRole(token: string | undefined): string {
+  if (!token) return "";
+  const [body] = token.split(".");
+  if (!body) return "";
+  try {
+    const normalized = body.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded)) as { user?: { role?: string } };
+    return payload.user?.role ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isLogin = pathname === "/login";
+  const sessionRole = readSessionRole(sessionCookie);
 
   if (!sessionCookie && !isPublicPath(pathname) && !pathname.startsWith("/api/")) {
     const url = request.nextUrl.clone();
@@ -22,8 +37,20 @@ export function middleware(request: NextRequest) {
 
   if (sessionCookie && isLogin) {
     const from = request.nextUrl.searchParams.get("from");
-    const target = from && from.startsWith("/") && !from.startsWith("/login") ? from : "/";
+    const target =
+      sessionRole === "guest"
+        ? "/guest-export"
+        : from &&
+            from.startsWith("/") &&
+            !from.startsWith("/login") &&
+            from !== "/guest-export"
+          ? from
+          : "/";
     return NextResponse.redirect(new URL(target, request.url));
+  }
+
+  if (sessionCookie && pathname === "/guest-export" && sessionRole && sessionRole !== "guest") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

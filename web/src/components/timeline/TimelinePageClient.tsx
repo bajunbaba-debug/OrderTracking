@@ -230,6 +230,11 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     [searchHitProjectIds]
   );
 
+  const projectById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects]
+  );
+
   const handleSearchInputChange = useCallback((value: string) => {
     setSearchInput(value);
     if (!value.trim()) {
@@ -389,7 +394,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
   }, [schedules, memberSummaries, filteredOwners]);
 
   const selectedProject = selectedBlock?.projectId
-    ? projects.find((p) => p.id === selectedBlock.projectId) ?? null
+    ? projectById.get(selectedBlock.projectId) ?? null
     : null;
 
   const selectedOrderState = selectedBlock?.projectId
@@ -454,7 +459,7 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     ) => {
       setPersisted((prev) => {
         let next = updater(prev);
-        if (log && user) {
+        if (log && user && user.role !== "guest") {
           next = appendLog(next, {
             ...log,
             operator: user.name,
@@ -467,10 +472,152 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
     [user]
   );
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 4000);
-  };
+  }, []);
+
+  const handleExportOrderSequence = useCallback(
+    async (ownerKey: string) => {
+      const exportOwners =
+        ownerKey === ALL_OWNERS_WORKDAY_KEY
+          ? overviewOwnerOptions
+          : overviewOwnerOptions.filter((owner) => owner === ownerKey);
+
+      const rows: (string | number | null)[][] = [];
+      let sequence = 1;
+      const formatExportDate = (value: string | null) => (value ? value.replaceAll("-", "/") : "");
+
+      for (const owner of exportOwners) {
+        const blocks = schedules.get(owner) ?? [];
+        for (const block of blocks) {
+          if (block.kind !== "order" || !block.projectId) continue;
+          const project = projectById.get(block.projectId);
+          if (!project) continue;
+          rows.push([
+            sequence,
+            project.type,
+            project.contractNo,
+            project.projectName,
+            project.model,
+            project.quantity,
+            project.commonRemark,
+            project.extraRemark,
+            formatExportDate(project.dueDate),
+            formatExportDate(block.startDate),
+            formatExportDate(block.endDate),
+          ]);
+          sequence += 1;
+        }
+      }
+
+      if (rows.length === 0) {
+        showToast("没有可导出的订单");
+        return;
+      }
+
+      const headers = [
+        "顺序",
+        "处理类型",
+        "合同号",
+        "项目名称",
+        "型号",
+        "数量",
+        "常用备注",
+        "额外备注",
+        "交期",
+        "预计开始",
+        "预计完成",
+      ];
+      const escapeHtml = (value: string | number | null) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+
+      const estimateTextWidth = (value: string | number | null) => {
+        const text = String(value ?? "");
+        let width = 0;
+        for (const char of text) {
+          width += /[\u4e00-\u9fff\uff00-\uffef]/.test(char) ? 15 : 8;
+        }
+        return width;
+      };
+      const colWidths = headers.map((header, colIndex) => {
+        if (header === "项目名称") return 230;
+        if (header === "交期" || header === "预计开始" || header === "预计完成") return 88;
+        let maxTextWidth = estimateTextWidth(header);
+        for (const row of rows) {
+          maxTextWidth = Math.max(maxTextWidth, estimateTextWidth(row[colIndex]));
+        }
+        return Math.ceil(maxTextWidth + 24);
+      });
+      const colgroup = colWidths.map((width) => `<col style="width:${width}px">`).join("");
+      const headerHtml = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
+      const bodyHtml = rows
+        .map(
+          (row) =>
+            `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`
+        )
+        .join("");
+      const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+  font-size: 11pt;
+}
+th, td {
+  border: 1px solid #b7c9e2;
+  padding: 4px 8px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 18px;
+}
+th {
+  height: 30px;
+  background: #dbeafe;
+  color: #1f2937;
+  font-weight: 700;
+}
+td {
+  height: 44px;
+  mso-height-source: userset;
+}
+</style>
+</head>
+<body>
+<table>
+<colgroup>${colgroup}</colgroup>
+<thead><tr>${headerHtml}</tr></thead>
+<tbody>${bodyHtml}</tbody>
+</table>
+</body>
+</html>`;
+      const ownerLabel = ownerKey === ALL_OWNERS_WORKDAY_KEY ? "全部人员" : ownerKey || "缺失";
+      const safeOwnerLabel = ownerLabel.replace(/[\\/:*?"<>|]/g, "_");
+      const blob = new Blob(["\ufeff", html], {
+        type: "application/vnd.ms-excel;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `订单顺序_${safeOwnerLabel}_${timelineToday}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast(`已导出 ${rows.length} 条订单`);
+    },
+    [overviewOwnerOptions, projectById, schedules, showToast, timelineToday]
+  );
 
   const restartFlowRun = useCallback(() => {
     setFlowRunVersion((v) => v + 1);
@@ -1100,6 +1247,8 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
           overviewWeeklyWeeks={!expandedView ? overviewWeeklyWeeks : undefined}
           canEditOverviewWorkday={canEditOverviewWorkday}
           onOverviewWeekConfigChange={handleOverviewWeekConfigChange}
+          exportOwnerOptions={overviewOwnerOptions}
+          onExportOrderSequence={handleExportOrderSequence}
         />
       </div>
 

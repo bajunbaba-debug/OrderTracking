@@ -137,6 +137,8 @@ interface Props {
   }[];
   canEditOverviewWorkday?: boolean;
   onOverviewWeekConfigChange?: (weekStart: string, patch: Partial<MemberWorkdayConfig>) => void;
+  exportOwnerOptions?: string[];
+  onExportOrderSequence?: (owner: string) => void;
 }
 
 function filterBlocks(blocks: ScheduledBlock[], filters: FilterState) {
@@ -701,9 +703,12 @@ export function TimelineGantt({
   overviewWeeklyWeeks,
   canEditOverviewWorkday = false,
   onOverviewWeekConfigChange,
+  exportOwnerOptions = [],
+  onExportOrderSequence,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [expandedViewMode, setExpandedViewMode] = useState<"2d" | "3d">("2d");
+  const [exportOwner, setExportOwner] = useState("__all__");
   const singleOwnerExpanded = expanded && owners.length === 1;
   const owner = singleOwnerExpanded ? owners[0] : null;
 
@@ -740,6 +745,11 @@ export function TimelineGantt({
     }
     return map;
   }, [owners, schedules, filters]);
+
+  const effectiveExportOwner =
+    exportOwner === "__all__" || exportOwnerOptions.includes(exportOwner)
+      ? exportOwner
+      : "__all__";
 
   const expandedOwnerBlocks = useMemo(
     () => (singleOwnerExpanded && owner ? (filteredByOwner.get(owner) ?? []) : []),
@@ -872,6 +882,30 @@ export function TimelineGantt({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {onExportOrderSequence ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <select
+                  value={effectiveExportOwner}
+                  onChange={(e) => setExportOwner(e.target.value)}
+                  className="h-6 max-w-[8rem] rounded border border-slate-200 bg-white px-1.5 text-[10px] text-slate-700"
+                  aria-label="选择导出人员"
+                >
+                  <option value="__all__">全部人员</option>
+                  {exportOwnerOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o || "缺失"}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => onExportOrderSequence(effectiveExportOwner)}
+                  className="h-6 rounded border border-slate-300 bg-white px-2 text-[10px] font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  导出订单顺序
+                </button>
+              </div>
+            ) : null}
             <label className="flex shrink-0 items-center gap-1 text-[10px] text-slate-500">
               配置人员
               <select

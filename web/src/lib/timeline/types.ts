@@ -17,12 +17,15 @@ export interface TimelineProjectBase {
   productionInstructionNo: string;
   projectName: string;
   model: string;
+  quantity: number | null;
   type: string;
   owner: string;
   dueDate: string | null;
   estimatedDays: number;
   designStatus: string;
   designCompleteDate: string | null;
+  commonRemark: string;
+  extraRemark: string;
 }
 
 /** 前端扩展状态（localStorage） */
@@ -158,7 +161,7 @@ export interface TimelineSearchResult {
 /** 同订单号在其他人员名下的处理项次 */
 export type RelatedOrderItem = TimelineSearchResult;
 
-export type UserRole = "admin" | "member";
+export type UserRole = "admin" | "member" | "guest";
 
 export interface AuthUser {
   id: string;
