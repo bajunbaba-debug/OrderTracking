@@ -222,6 +222,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (created + updated > 0) {
+    await prisma.importBatch.create({
+      data: {
+        fileName: source,
+        rowCount: created + updated,
+        mode: "api",
+        note: taskId ? `API 导入，任务 ${taskId}` : "API 导入",
+      },
+    });
+  }
+
   return NextResponse.json({
     ok: failed === 0,
     created,

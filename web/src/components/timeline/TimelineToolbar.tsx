@@ -163,7 +163,7 @@ function OwnerSwitcher({
   onFocusOwner: (owner: string | null) => void;
 }) {
   return (
-    <div className="relative min-w-[140px] max-w-md flex-1 overflow-visible rounded-md border border-slate-200 bg-slate-50">
+    <div className="relative min-w-[220px] flex-[999_1_24rem] overflow-visible rounded-md border border-slate-200 bg-slate-50">
       <div className="flex h-8 items-center overflow-x-auto overflow-y-visible px-2 [scrollbar-width:thin]">
         <div className="flex items-center gap-1.5">
           <button
@@ -247,15 +247,54 @@ export function TimelineToolbar({
 
   return (
     <div className="mb-3 overflow-visible rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="mb-2.5 flex items-center gap-2">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <span className={`${TEXT} text-slate-500`}>订单号搜索</span>
         <button type="button" onClick={onToggleDelayed} className={toggleChipClass(onlyDelayed)}>
           延期风险
         </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`${TEXT} shrink-0 text-slate-500`}>状态</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className={SELECT}
+          >
+            <option value="">全部</option>
+            <option value="pending">未处理</option>
+            <option value="in_progress">正在处理</option>
+            <option value="frozen">已冻结</option>
+          </select>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={`${TEXT} shrink-0 text-slate-500`}>时间轴</span>
+          <div
+            className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
+          >
+            {ZOOM_LEVELS.map((level) => {
+              const preset = TIMELINE_ZOOM_PRESETS[level];
+              const active = zoomLevel === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => onZoomLevelChange(level)}
+                  title={`每行 ${preset.daysPerRow} 天`}
+                  className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
+                    active
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-white hover:text-slate-900"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 overflow-visible">
-        <div ref={searchWrapRef} className="relative flex min-w-[240px] flex-1 flex-wrap items-center gap-2">
+        <div ref={searchWrapRef} className="relative flex min-w-[280px] flex-1 flex-wrap items-center gap-2">
           <input
             type="search"
             value={searchInput}
@@ -268,7 +307,7 @@ export function TimelineToolbar({
               if (e.key === "Escape") onSearchClose();
             }}
             placeholder="合同号(项目名)/合同号(项目名)/..."
-            className={`${INPUT} min-w-[120px] flex-1`}
+            className={`${INPUT} min-w-[180px] flex-[1_1_20rem]`}
           />
           <button type="button" onClick={onSearchSubmit} className={BTN_PRIMARY}>
             搜索
@@ -350,47 +389,6 @@ export function TimelineToolbar({
               </div>
             </>
           ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`${TEXT} shrink-0 text-slate-500`}>状态</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className={SELECT}
-          >
-            <option value="">全部</option>
-            <option value="pending">未处理</option>
-            <option value="in_progress">正在处理</option>
-            <option value="frozen">已冻结</option>
-          </select>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`${TEXT} shrink-0 text-slate-500`}>时间轴</span>
-          <div
-            className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
-          >
-            {ZOOM_LEVELS.map((level) => {
-              const preset = TIMELINE_ZOOM_PRESETS[level];
-              const active = zoomLevel === level;
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => onZoomLevelChange(level)}
-                  title={`每行 ${preset.daysPerRow} 天`}
-                  className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
-                    active
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white hover:text-slate-900"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 

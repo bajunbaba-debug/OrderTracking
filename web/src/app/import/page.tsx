@@ -6,6 +6,7 @@ import { Suspense, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { useAuth } from "@/lib/auth/context";
 import { formatNumber } from "@/lib/format";
+import { resetTimelineState } from "@/lib/timeline/storage";
 
 interface PreviewData {
   fileName: string;
@@ -15,7 +16,7 @@ interface PreviewData {
 }
 
 const IMPORT_CONFIRM_MESSAGE =
-  "此操作将清空当前数据库中的全部项目明细和字典，并从 Excel 重新导入。网页中后续录入的数据也会丢失。确定继续吗？";
+  "此操作将清空当前数据库中的全部项目明细和字典，并从 Excel 重新导入；订单时间流中的状态、突发事件和操作记录也会重置。网页中后续录入的数据也会丢失。确定继续吗？";
 
 const ACCEPTED_EXCEL = ".xlsx,.xls,.xlsm";
 
@@ -61,7 +62,8 @@ function ImportPageInner() {
     const res = await fetch("/api/import", { method: "POST", body: importForm });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "导入失败");
-    setMessage(`导入成功：${data.rowCount} 条明细已写入本地数据库（策略：清空并重新导入）`);
+    resetTimelineState();
+    setMessage(`导入成功：${data.rowCount} 条明细已写入本地数据库，订单时间流已重置（策略：清空并重新导入）`);
   }
 
   async function handleSelectedFile(file: File) {
@@ -129,7 +131,8 @@ function ImportPageInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "导入失败");
-      setMessage(`导入成功：${data.rowCount} 条明细已写入本地数据库（策略：清空并重新导入）`);
+      resetTimelineState();
+      setMessage(`导入成功：${data.rowCount} 条明细已写入本地数据库，订单时间流已重置（策略：清空并重新导入）`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "导入失败");
     } finally {
@@ -154,7 +157,7 @@ function ImportPageInner() {
       <div className="space-y-6">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           导入策略：清空并重新导入。执行后会删除现有项目明细与字典，再从 Excel 重建。点击导入前会弹出二次确认。原始
-          xlsm 文件不会被修改。
+          xlsm 文件不会被修改。订单时间流中的状态、突发事件和操作记录会同步重置。
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-6">

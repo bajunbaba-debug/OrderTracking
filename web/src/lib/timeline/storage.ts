@@ -11,11 +11,22 @@ export const EMPTY_TIMELINE_STATE: TimelinePersistedState = {
   memberWeeklyWorkdayConfig: {},
 };
 
+function emptyTimelineState(): TimelinePersistedState {
+  return {
+    orderStates: [],
+    incidents: [],
+    operationLogs: [],
+    memberWorkStarts: {},
+    memberWorkdayConfig: {},
+    memberWeeklyWorkdayConfig: {},
+  };
+}
+
 export function loadTimelineState(): TimelinePersistedState {
-  if (typeof window === "undefined") return EMPTY_TIMELINE_STATE;
+  if (typeof window === "undefined") return emptyTimelineState();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_TIMELINE_STATE;
+    if (!raw) return emptyTimelineState();
     const parsed = JSON.parse(raw) as TimelinePersistedState;
     return {
       orderStates: parsed.orderStates ?? [],
@@ -26,13 +37,17 @@ export function loadTimelineState(): TimelinePersistedState {
       memberWeeklyWorkdayConfig: parsed.memberWeeklyWorkdayConfig ?? {},
     };
   } catch {
-    return EMPTY_TIMELINE_STATE;
+    return emptyTimelineState();
   }
 }
 
 export function saveTimelineState(state: TimelinePersistedState): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+export function resetTimelineState(): void {
+  saveTimelineState(emptyTimelineState());
 }
 
 export function appendLog(

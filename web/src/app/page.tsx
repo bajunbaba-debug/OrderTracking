@@ -2,20 +2,21 @@ import Link from "next/link";
 import { DashboardWorkloadPanel } from "@/components/DashboardWorkloadPanel";
 import { StatCard, PageHeader, EmptyState } from "@/components/ui";
 import { getDashboardStats } from "@/lib/analytics";
-import { APP_CONFIG } from "@/lib/config";
 import { formatNumber } from "@/lib/format";
+import { getLatestImportBatch } from "@/lib/import-batch";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats();
+  const [stats, lastImport] = await Promise.all([getDashboardStats(), getLatestImportBatch()]);
+  const statsDescription = `统计基准日期：${lastImport?.displayText ?? "暂无导入记录"}`;
 
   if (stats.totalCount === 0) {
     return (
       <>
         <PageHeader
           title="总览看板"
-          description={`统计基准日期：${APP_CONFIG.statsDate}`}
+          description={statsDescription}
           action={
             <Link
               href="/import?from=projects"
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title="总览看板"
-        description={`统计基准日期：${APP_CONFIG.statsDate} · 共 ${stats.totalCount} 条明细`}
+        description={`${statsDescription} · 共 ${stats.totalCount} 条明细`}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">

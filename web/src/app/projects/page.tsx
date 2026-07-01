@@ -24,6 +24,10 @@ interface ProjectItem {
   riskLevel: string;
 }
 
+interface ImportBatchSummary {
+  displayText: string;
+}
+
 export function parseUrlFilters(params: URLSearchParams) {
   const status = params.get("status");
   const due = params.get("dueBucket");
@@ -121,6 +125,7 @@ function ProjectsPageInner() {
   const [type, setType] = useState("");
   const [dueBucket, setDueBucket] = useState(urlFilters.dueBucket);
   const [completeTarget, setCompleteTarget] = useState<ProjectItem | null>(null);
+  const [lastImport, setLastImport] = useState<ImportBatchSummary | null>(null);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -173,6 +178,16 @@ function ProjectsPageInner() {
       .catch(() => setQualityCount(0));
   }, [query]);
 
+  useEffect(() => {
+    fetch("/api/import/latest")
+      .then((r) => {
+        if (!r.ok) throw new Error("latest import fetch failed");
+        return r.json();
+      })
+      .then((data: { latest?: ImportBatchSummary | null }) => setLastImport(data.latest ?? null))
+      .catch(() => setLastImport(null));
+  }, [loadedQuery]);
+
   const loading = loadedQuery !== query;
   const owners = [...new Set(items.map((i) => i.owner).filter(Boolean))];
   const types = [...new Set(items.map((i) => i.type).filter(Boolean))];
@@ -211,7 +226,10 @@ function ProjectsPageInner() {
         extra={qualityButton}
         action={
           canWrite ? (
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500">
+                上次导入：{lastImport?.displayText ?? "暂无记录"}
+              </span>
               <Link
                 href="/import?from=projects"
                 className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -303,7 +321,6 @@ function ProjectsPageInner() {
               <tr>
                 <th className={TH}>类型</th>
                 <th className={TH}>合同号</th>
-                <th className={TH}>生产指令单号</th>
                 <th className={TH}>项目名称</th>
                 <th className={TH}>型号</th>
                 <th className={TH}>负责人</th>
@@ -319,7 +336,6 @@ function ProjectsPageInner() {
                 <tr key={item.id}>
                   <td className={TD}><DisplayText value={item.type} /></td>
                   <td className={TD}><DisplayText value={item.contractNo} /></td>
-                  <td className={TD}><DisplayText value={item.productionInstructionNo} /></td>
                   <td className={`max-w-[220px] ${TD}`}>
                     <span className="line-clamp-2" title={item.projectName || undefined}>
                       <DisplayText value={item.projectName} />
