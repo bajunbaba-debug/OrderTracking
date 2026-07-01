@@ -13,20 +13,32 @@ export interface ImportBatchSummary {
   displayText: string;
 }
 
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
+const IMPORT_DISPLAY_TIME_ZONE = "Asia/Shanghai";
+const DATE_TIME_PARTS = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: IMPORT_DISPLAY_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
 
 export function formatDateTimeToSecond(value: Date | string | null | undefined): string {
   if (!value) return "-";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  const y = date.getFullYear();
-  const m = pad2(date.getMonth() + 1);
-  const d = pad2(date.getDate());
-  const hh = pad2(date.getHours());
-  const mm = pad2(date.getMinutes());
-  const ss = pad2(date.getSeconds());
+
+  const parts = Object.fromEntries(
+    DATE_TIME_PARTS.formatToParts(date).map((part) => [part.type, part.value])
+  );
+  const y = parts.year;
+  const m = parts.month;
+  const d = parts.day;
+  const hh = parts.hour;
+  const mm = parts.minute;
+  const ss = parts.second;
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
