@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import type { RawProjectRow } from "./types";
 import { normalizeBusinessDate } from "./format";
+import { normalizeUuid } from "./project-input";
 
 function str(value: unknown): string {
   if (value == null) return "";
@@ -17,6 +18,19 @@ function num(value: unknown): number | null {
 
 function date(value: unknown): Date | null {
   return normalizeBusinessDate(value);
+}
+
+function caseInsensitiveValue(row: Record<string, unknown>, key: string): unknown {
+  const found = Object.keys(row).find((k) => k.trim().toLowerCase() === key.toLowerCase());
+  return found ? row[found] : "";
+}
+
+function uuidValue(row: Record<string, unknown>): unknown {
+  const normalizedTargets = new Set(["uuid", "项目uuid", "唯一标识", "唯一id"]);
+  const found = Object.keys(row).find((key) =>
+    normalizedTargets.has(key.trim().replace(/\s+/g, "").toLowerCase())
+  );
+  return found ? row[found] : "";
 }
 
 export interface DictionaryEntry {
@@ -46,6 +60,7 @@ function parseSheet1(workbook: XLSX.WorkBook): RawProjectRow[] {
 
   return rows.map((row, index) => ({
     sourceRowNumber: index + 2,
+    uuid: normalizeUuid(uuidValue(row)),
     type: str(row["类型"]),
     typeDetail: str(row["类型细化"]),
     contractNo: str(row["合同号"]),
@@ -113,6 +128,7 @@ export function readExcelBuffer(buffer: Buffer, fileName: string): ExcelPreview 
     sheet2Entries: dictionaries.length,
     sampleFields: [
       "类型",
+      "uuid",
       "类型细化",
       "合同号",
       "生产指令单号",
@@ -146,6 +162,7 @@ export function readExcelFile(filePath: string): ExcelPreview {
     sheet2Entries: dictionaries.length,
     sampleFields: [
       "类型",
+      "uuid",
       "类型细化",
       "合同号",
       "生产指令单号",

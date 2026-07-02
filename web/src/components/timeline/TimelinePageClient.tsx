@@ -131,10 +131,27 @@ export function TimelinePageClient({ serverToday }: { serverToday: string }) {
         const bases = (data as Parameters<typeof projectToTimelineBase>[0][]).map(projectToTimelineBase);
         setProjects(bases);
         setMembersFromOwners(bases.map((p) => p.owner));
-        setPersisted((prev) => ({
-          ...prev,
-          orderStates: initOrderStates(bases, prev.orderStates),
-        }));
+        setPersisted((prev) => {
+          const projectByUuid = new Map(
+            bases.filter((p) => p.uuid).map((p) => [p.uuid.toLowerCase(), p.id])
+          );
+          const projectIdMap = new Map<string, string>();
+          for (const state of prev.orderStates) {
+            if (!state.projectUuid) continue;
+            const nextId = projectByUuid.get(state.projectUuid.toLowerCase());
+            if (nextId && nextId !== state.projectId) {
+              projectIdMap.set(state.projectId, nextId);
+            }
+          }
+          return {
+            ...prev,
+            orderStates: initOrderStates(bases, prev.orderStates),
+            incidents: prev.incidents.map((incident) => ({
+              ...incident,
+              affectedOrderIds: incident.affectedOrderIds.map((id) => projectIdMap.get(id) ?? id),
+            })),
+          };
+        });
         setLoaded(true);
       });
   }, [setMembersFromOwners]);
@@ -1049,6 +1066,33 @@ td {
     showToast(`突发事件「${data.name}」已创建，后续订单将顺延`);
   };
 
+  const handleDeleteIncident = () => {
+    if (!selectedBlock || selectedBlock.kind !== "incident") return;
+    if (!canManageOwner(selectedBlock.owner)) return;
+    const incidentId = selectedBlock.incidentId ?? selectedBlock.id;
+    const incidentName = selectedBlock.label;
+    if (!window.confirm(`确定删除突发事件「${incidentName}」吗？删除后相关订单排程会重新计算。`)) {
+      return;
+    }
+
+    updatePersisted(
+      (prev) => ({
+        ...prev,
+        incidents: prev.incidents.filter((incident) => incident.id !== incidentId),
+      }),
+      {
+        action: "delete_incident",
+        before: incidentName,
+        after: "",
+        reason: "删除突发事件",
+        affectedCount: 1,
+      }
+    );
+    setSelectedBlock(null);
+    setDrawerOpen(false);
+    showToast(`突发事件「${incidentName}」已删除`);
+  };
+
   const handleSetInProgress = (startDate: string, processedTime: number) => {
     if (!selectedProject || !canManageOwner(selectedProject.owner)) return;
     const normalizedStartDate = startDate < timelineToday ? timelineToday : startDate;
@@ -1305,6 +1349,7 @@ td {
         onUnfreeze={handleUnfreeze}
         onOpenRestart={() => setModal("restart")}
         onOpenIncident={() => setModal("incident")}
+        onDeleteIncident={handleDeleteIncident}
         onUpdateEstimate={async (days) => {
           if (!selectedProject || !canEdit) return;
           try {

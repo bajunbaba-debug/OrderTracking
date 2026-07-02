@@ -1,8 +1,13 @@
 import { parseDateInput } from "./format";
 import type { RawProjectRow } from "./types";
 
+export function normalizeUuid(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 export function parseProjectBody(body: Record<string, unknown>): RawProjectRow {
   return {
+    uuid: normalizeUuid(body.uuid),
     type: String(body.type ?? "").trim(),
     typeDetail: String(body.typeDetail ?? "").trim(),
     contractNo: String(body.contractNo ?? "").trim(),
@@ -33,6 +38,7 @@ export function mergeProjectBody(
   const parsed = parseProjectBody(body);
   return {
     type: body.type !== undefined ? parsed.type : existing.type,
+    uuid: body.uuid !== undefined ? parsed.uuid : existing.uuid,
     typeDetail: body.typeDetail !== undefined ? parsed.typeDetail : existing.typeDetail,
     contractNo: body.contractNo !== undefined ? parsed.contractNo : existing.contractNo,
     productionInstructionNo:
@@ -61,6 +67,7 @@ export function mergeProjectBody(
 
 export function dbRecordToRawRow(item: {
   sourceRowNumber: number | null;
+  uuid: string;
   type: string;
   typeDetail: string;
   contractNo: string;
@@ -81,6 +88,7 @@ export function dbRecordToRawRow(item: {
 }): RawProjectRow {
   return {
     sourceRowNumber: item.sourceRowNumber ?? undefined,
+    uuid: item.uuid,
     type: item.type,
     typeDetail: item.typeDetail,
     contractNo: item.contractNo,

@@ -51,6 +51,72 @@ export function parseUrlFilters(params: URLSearchParams) {
   return { designStatus, dueBucket };
 }
 
+function DeleteDatabaseModal({
+  onConfirm,
+  onCancel,
+  submitting,
+  error,
+}: {
+  onConfirm: (password: string) => void;
+  onCancel: () => void;
+  submitting: boolean;
+  error: string;
+}) {
+  const [password, setPassword] = useState("");
+
+  return (
+    <div
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={submitting ? undefined : onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-database-title"
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-red-200 bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="delete-database-title" className="text-base font-semibold text-red-800">
+          确认删除数据库
+        </h3>
+        <p className="mt-2 text-sm text-slate-600">
+          将清空全部项目明细、字典、导入记录与配置，此操作不可恢复。请输入管理员密码以继续。
+        </p>
+        <label className="mt-4 block text-sm">
+          <span className="mb-1 block text-xs text-slate-500">管理员密码</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            disabled={submitting}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50"
+          />
+        </label>
+        {error ? <p className="mt-2 text-sm text-red-700">{error}</p> : null}
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded border border-slate-300 px-4 py-2 text-sm disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(password)}
+            disabled={submitting || !password}
+            className="rounded bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {submitting ? "删除中..." : "确认删除"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MarkCompleteModal({
   projectName,
   onConfirm,
@@ -111,7 +177,7 @@ function MarkCompleteModal({
 }
 
 function ProjectsPageInner() {
-  const { canWrite } = useAuth();
+  const { canWrite, isAdmin } = useAuth();
   const searchParams = useSearchParams();
   const urlFilters = useMemo(() => parseUrlFilters(searchParams), [searchParams]);
 
@@ -119,12 +185,16 @@ function ProjectsPageInner() {
   const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState("");
   const [qualityCount, setQualityCount] = useState(0);
+  const [dataMatchCount, setDataMatchCount] = useState(0);
   const [search, setSearch] = useState("");
   const [designStatus, setDesignStatus] = useState(urlFilters.designStatus);
   const [owner, setOwner] = useState("");
   const [type, setType] = useState("");
   const [dueBucket, setDueBucket] = useState(urlFilters.dueBucket);
   const [completeTarget, setCompleteTarget] = useState<ProjectItem | null>(null);
+  const [deleteDatabaseOpen, setDeleteDatabaseOpen] = useState(false);
+  const [deleteDatabaseError, setDeleteDatabaseError] = useState("");
+  const [deletingDatabase, setDeletingDatabase] = useState(false);
   const [lastImport, setLastImport] = useState<ImportBatchSummary | null>(null);
 
   const query = useMemo(() => {
@@ -179,6 +249,16 @@ function ProjectsPageInner() {
   }, [query]);
 
   useEffect(() => {
+    fetch("/api/data-match")
+      .then((r) => {
+        if (!r.ok) throw new Error("data match fetch failed");
+        return r.json();
+      })
+      .then((data: { count?: number }) => setDataMatchCount(Number(data.count ?? 0)))
+      .catch(() => setDataMatchCount(0));
+  }, [loadedQuery]);
+
+  useEffect(() => {
     fetch("/api/import/latest")
       .then((r) => {
         if (!r.ok) throw new Error("latest import fetch failed");
@@ -204,18 +284,70 @@ function ProjectsPageInner() {
     setLoadedQuery(null);
   }
 
+  async function confirmDeleteDatabase(password: string) {
+    if (!isAdmin) return;
+    setDeletingDatabase(true);
+    setDeleteDatabaseError("");
+    try {
+      const res = await fetch("/api/database/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const body = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        setDeleteDatabaseError(body.error || "删库失败");
+        return;
+      }
+      setDeleteDatabaseOpen(false);
+      setLoadedQuery(null);
+      setQualityCount(0);
+      setDataMatchCount(0);
+      setLastImport(null);
+    } catch {
+      setDeleteDatabaseError("删库失败，请稍后重试");
+    } finally {
+      setDeletingDatabase(false);
+    }
+  }
+
   const qualityButton = (
-    <Link
-      href="/quality?from=projects"
-      className="relative rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-    >
-      数据质量
-      {qualityCount > 0 ? (
-        <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white">
-          {qualityCount}
-        </span>
+    <div className="flex flex-wrap items-center gap-2">
+      <Link
+        href="/quality?from=projects"
+        className="relative rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+      >
+        数据质量
+        {qualityCount > 0 ? (
+          <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white">
+            {qualityCount}
+          </span>
+        ) : null}
+      </Link>
+      <Link
+        href="/data-match"
+        className="relative rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+      >
+        数据匹配
+        {dataMatchCount > 0 ? (
+          <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white">
+            {dataMatchCount}
+          </span>
+        ) : null}
+      </Link>
+      {isAdmin ? (
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteDatabaseError("");
+            setDeleteDatabaseOpen(true);
+          }}
+          className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
+        >
+          删除数据库
+        </button>
       ) : null}
-    </Link>
+    </div>
   );
 
   return (
@@ -399,6 +531,19 @@ function ProjectsPageInner() {
             projectName={completeTarget.projectName}
             onConfirm={(date) => void confirmMarkComplete(date)}
             onCancel={() => setCompleteTarget(null)}
+          />
+        ) : null}
+
+        {deleteDatabaseOpen && isAdmin ? (
+          <DeleteDatabaseModal
+            submitting={deletingDatabase}
+            error={deleteDatabaseError}
+            onConfirm={(password) => void confirmDeleteDatabase(password)}
+            onCancel={() => {
+              if (deletingDatabase) return;
+              setDeleteDatabaseOpen(false);
+              setDeleteDatabaseError("");
+            }}
           />
         ) : null}
       </div>

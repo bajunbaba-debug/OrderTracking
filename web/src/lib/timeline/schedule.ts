@@ -127,6 +127,7 @@ function defaultOrderState(project: TimelineProjectBase, index: number): Timelin
   const isComplete = project.designStatus === "complete";
   return {
     projectId: project.id,
+    projectUuid: project.uuid || undefined,
     owner: normalizeOwnerKey(project.owner),
     queueIndex: index,
     status: isComplete ? "complete" : "pending",
@@ -150,6 +151,11 @@ export function initOrderStates(
   existing: TimelineOrderState[]
 ): TimelineOrderState[] {
   const existingMap = new Map(existing.map((s) => [s.projectId, s]));
+  const existingUuidMap = new Map(
+    existing
+      .filter((s) => s.projectUuid)
+      .map((s) => [s.projectUuid!.toLowerCase(), s])
+  );
   const byOwner = new Map<string, TimelineProjectBase[]>();
 
   for (const p of projects) {
@@ -171,10 +177,12 @@ export function initOrderStates(
       });
 
     incomplete.forEach((p, i) => {
-      const prev = existingMap.get(p.id);
+      const prev = existingMap.get(p.id) ?? (p.uuid ? existingUuidMap.get(p.uuid.toLowerCase()) : undefined);
       if (prev) {
         result.push({
           ...prev,
+          projectId: p.id,
+          projectUuid: p.uuid || prev.projectUuid,
           owner: normalizeOwnerKey(p.owner),
           processedTime: resolveProcessedTime(prev, p.estimatedDays),
         });
@@ -184,8 +192,12 @@ export function initOrderStates(
     });
 
     for (const p of list.filter((x) => x.designStatus === "complete")) {
-      const prev = existingMap.get(p.id);
-      result.push(prev ?? { ...defaultOrderState(p, 9999), status: "complete" });
+      const prev = existingMap.get(p.id) ?? (p.uuid ? existingUuidMap.get(p.uuid.toLowerCase()) : undefined);
+      result.push(
+        prev
+          ? { ...prev, projectId: p.id, projectUuid: p.uuid || prev.projectUuid, status: "complete" }
+          : { ...defaultOrderState(p, 9999), status: "complete" }
+      );
     }
   }
 
@@ -618,6 +630,7 @@ export function getDateRange(
 
 export function projectToTimelineBase(p: {
   id: string;
+  uuid?: string | null;
   contractNo: string;
   productionInstructionNo: string;
   projectName: string;
@@ -635,6 +648,7 @@ export function projectToTimelineBase(p: {
 }): TimelineProjectBase {
   return {
     id: p.id,
+    uuid: p.uuid ?? "",
     contractNo: p.contractNo,
     productionInstructionNo: p.productionInstructionNo,
     projectName: p.projectName,

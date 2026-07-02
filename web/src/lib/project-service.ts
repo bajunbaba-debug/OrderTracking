@@ -1,13 +1,15 @@
 import { prisma } from "./prisma";
-import { enrichRow, computeTypeBaselines } from "./calculations";
+import { enrichRow, computeTypeBaselines, isEmpty } from "./calculations";
 import { getStatsDate } from "./config";
 import { parseExcelBuffer, parseExcelFile, type DictionaryEntry } from "./excel";
 import { dbRecordToRawRow } from "./project-input";
 import type { RawProjectRow } from "./types";
 
-function toDbPayload(row: RawProjectRow & ReturnType<typeof enrichRow>) {
+function toDbPayload(row: RawProjectRow & ReturnType<typeof enrichRow>, lastImportBatchId?: string) {
   return {
     sourceRowNumber: row.sourceRowNumber,
+    uuid: row.uuid,
+    ...(lastImportBatchId ? { lastImportBatchId } : {}),
     type: row.type,
     typeDetail: row.typeDetail,
     contractNo: row.contractNo,
@@ -72,26 +74,35 @@ export async function importProjects(
   fileName: string,
   mode: "reset" = "reset"
 ) {
+  const importableProjects = projects.filter((row) => !isEmpty(row.uuid));
   const statsDate = getStatsDate();
-  const baselines = computeTypeBaselines(projects);
-  const enriched = projects.map((row) => enrichRow(row, baselines, statsDate));
+  const baselines = computeTypeBaselines(importableProjects);
+  const enriched = importableProjects.map((row) => enrichRow(row, baselines, statsDate));
 
   await prisma.$transaction(async (tx) => {
-    if (mode === "reset") {
-      await tx.projectItem.deleteMany();
-    }
     await saveDictionaries(dictionaries, tx);
-    for (const row of enriched) {
-      await tx.projectItem.create({ data: toDbPayload(row) });
-    }
-    await tx.importBatch.create({
+    const batch = await tx.importBatch.create({
       data: {
         fileName,
         rowCount: enriched.length,
         mode,
-        note: mode === "reset" ? "清空并重新导入" : "",
+        note: mode === "reset" ? "按 UUID 覆盖并导入" : "",
       },
     });
+    for (const row of enriched) {
+      const existing = row.uuid
+        ? await tx.projectItem.findFirst({
+            where: { uuid: row.uuid },
+            select: { id: true },
+          })
+        : null;
+      const data = toDbPayload(row, batch.id);
+      if (existing) {
+        await tx.projectItem.update({ where: { id: existing.id }, data });
+      } else {
+        await tx.projectItem.create({ data });
+      }
+    }
     await tx.appConfig.upsert({
       where: { id: "default" },
       create: { id: "default", statsDate: process.env.STATS_DATE || "2026-06-18" },
@@ -100,6 +111,16 @@ export async function importProjects(
   });
 
   return { rowCount: enriched.length };
+}
+
+/** 清空 SQLite 中全部业务数据（项目、字典、导入批次、配置） */
+export async function clearAllDatabase() {
+  await prisma.$transaction([
+    prisma.projectItem.deleteMany(),
+    prisma.dictionary.deleteMany(),
+    prisma.importBatch.deleteMany(),
+    prisma.appConfig.deleteMany(),
+  ]);
 }
 
 export async function importFromBuffer(buffer: Buffer, fileName: string) {
@@ -148,9 +169,15 @@ export function serializeProject(item: Awaited<ReturnType<typeof prisma.projectI
 }
 
 export async function upsertProject(id: string | null, data: RawProjectRow) {
+  const targetId = id ?? (data.uuid
+    ? (await prisma.projectItem.findFirst({
+        where: { uuid: data.uuid },
+        select: { id: true },
+      }))?.id ?? null
+    : null);
   const allItems = await prisma.projectItem.findMany();
   const baselineRows = allItems
-    .filter((item) => (id ? item.id !== id : true))
+    .filter((item) => (targetId ? item.id !== targetId : true))
     .map((item) => dbItemToRawRow(item));
   baselineRows.push(data);
 
@@ -159,9 +186,9 @@ export async function upsertProject(id: string | null, data: RawProjectRow) {
   const enriched = enrichRow(data, baselines, statsDate);
   const payload = toDbPayload(enriched);
 
-  if (id) {
+  if (targetId) {
     const updated = await prisma.projectItem.update({
-      where: { id },
+      where: { id: targetId },
       data: payload,
     });
     return serializeProject(updated);

@@ -13,5 +13,14 @@ export async function assertCanWriteApi(): Promise<NextResponse | null> {
   return null;
 }
 
+/** 仅管理员可执行的高危 API */
+export async function assertAdminApi(): Promise<NextResponse | null> {
+  const user = await getSessionUser();
+  if (user?.role !== "admin") {
+    return NextResponse.json({ error: "仅管理员可执行此操作" }, { status: 403 });
+  }
+  return null;
+}
+
 /** 读取当前会话用户（API 路由用） */
 export { getSessionUser };

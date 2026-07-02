@@ -40,6 +40,7 @@ interface Props {
   onUnfreeze: () => void;
   onOpenRestart: () => void;
   onOpenIncident: () => void;
+  onDeleteIncident: () => void;
   onUpdateEstimate: (days: number) => void;
   onSelectRelated: (projectId: string, owner: string) => void;
   queuePosition: { index: number; total: number } | null;
@@ -68,6 +69,7 @@ export function TimelineDetailDrawer({
   onUnfreeze,
   onOpenRestart,
   onOpenIncident,
+  onDeleteIncident,
   onUpdateEstimate,
   onSelectRelated,
   queuePosition,
@@ -163,18 +165,27 @@ export function TimelineDetailDrawer({
               <dd>{block.affectedByIncident ? "是" : "否"}</dd>
             </dl>
           ) : block.kind === "incident" ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-              <dt className="text-slate-500">事件名称</dt>
-              <dd>{block.label}</dd>
-              <dt className="text-slate-500">影响人员</dt>
-              <dd><DisplayText value={block.owner} /></dd>
-              <dt className="text-slate-500">开始时间</dt>
-              <dd><DisplayDate value={block.startDate} /></dd>
-              <dt className="text-slate-500">持续时间</dt>
-              <dd>{block.durationDays} 工作日</dd>
-              <dt className="text-slate-500">说明</dt>
-              <dd>{block.subLabel}</dd>
-            </dl>
+            <>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                <dt className="text-slate-500">事件名称</dt>
+                <dd>{block.label}</dd>
+                <dt className="text-slate-500">影响人员</dt>
+                <dd><DisplayText value={block.owner} /></dd>
+                <dt className="text-slate-500">开始时间</dt>
+                <dd><DisplayDate value={block.startDate} /></dd>
+                <dt className="text-slate-500">持续时间</dt>
+                <dd>{block.durationDays} 工作日</dd>
+                <dt className="text-slate-500">说明</dt>
+                <dd>{block.subLabel}</dd>
+              </dl>
+              {canEdit ? (
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <ActionBtn full onClick={onDeleteIncident} className="border-red-300 bg-red-50 text-red-700">
+                    删除突发事件
+                  </ActionBtn>
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {isFrozen || (orderState?.restartExtra ?? 0) > 0 ? (

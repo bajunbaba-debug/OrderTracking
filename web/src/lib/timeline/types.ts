@@ -13,6 +13,7 @@ export type TimelineRiskType =
 
 export interface TimelineProjectBase {
   id: string;
+  uuid: string;
   contractNo: string;
   productionInstructionNo: string;
   projectName: string;
@@ -31,6 +32,7 @@ export interface TimelineProjectBase {
 /** 前端扩展状态（localStorage） */
 export interface TimelineOrderState {
   projectId: string;
+  projectUuid?: string;
   owner: string;
   /** 队列序号，越小越靠前 */
   queueIndex: number;
@@ -82,6 +84,7 @@ export interface TimelineOperationLog {
     | "update_estimate"
     | "set_work_start"
     | "create_incident"
+    | "delete_incident"
     | "change_owner"
     | "admin_intervention"
     | "unfreeze"

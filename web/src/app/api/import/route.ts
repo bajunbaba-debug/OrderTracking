@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...result,
       mode: "reset",
-      message: "已清空旧数据并重新导入",
+      message: "已按 UUID 覆盖并导入",
     });
   }
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...result,
       mode: "reset",
-      message: "已清空旧数据并重新导入",
+      message: "已按 UUID 覆盖并导入",
     });
   }
 

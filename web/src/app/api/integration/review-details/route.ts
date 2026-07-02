@@ -14,6 +14,7 @@ type ResultStatus = "created" | "updated" | "failed";
 
 type ReviewDetailPayload = {
   id?: unknown;
+  uuid?: unknown;
   type?: unknown;
   typeDetail?: unknown;
   owner?: unknown;
@@ -28,6 +29,7 @@ type ReviewDetailPayload = {
 };
 
 type ReviewDetailsPayload = {
+  uuid?: unknown;
   source?: unknown;
   taskId?: unknown;
   contractNo?: unknown;
@@ -78,6 +80,14 @@ async function findExistingProject(params: {
   row: RawProjectRow;
 }) {
   const { source, taskId, detailId, row } = params;
+  if (row.uuid) {
+    const byUuid = await prisma.projectItem.findFirst({
+      where: { uuid: row.uuid },
+      select: { id: true },
+    });
+    if (byUuid) return byUuid;
+  }
+
   if (source && taskId && detailId) {
     const byExternalId = await prisma.projectItem.findFirst({
       where: {
@@ -124,6 +134,7 @@ function buildRow(payload: ReviewDetailsPayload, detail: ReviewDetailPayload, wa
   }
 
   return parseProjectBody({
+    uuid: text(detail.uuid) || text(payload.uuid),
     type: text(detail.type),
     typeDetail: text(detail.typeDetail),
     contractNo: text(payload.contractNo),
@@ -170,6 +181,7 @@ export async function POST(request: NextRequest) {
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const savedIds: string[] = [];
 
   for (let index = 0; index < body.details.length; index += 1) {
     const detail = body.details[index] as ReviewDetailPayload;
@@ -206,6 +218,7 @@ export async function POST(request: NextRequest) {
           externalDetailId: detailId,
         },
       });
+      savedIds.push(saved.id);
 
       if (existing) updated += 1;
       else created += 1;
@@ -223,13 +236,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (created + updated > 0) {
-    await prisma.importBatch.create({
+    const batch = await prisma.importBatch.create({
       data: {
         fileName: source,
         rowCount: created + updated,
         mode: "api",
         note: taskId ? `API 导入，任务 ${taskId}` : "API 导入",
       },
+    });
+    await prisma.projectItem.updateMany({
+      where: { id: { in: savedIds } },
+      data: { lastImportBatchId: batch.id },
     });
   }
 

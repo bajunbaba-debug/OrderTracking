@@ -31,6 +31,12 @@ export function verifyAdminLogin(username: string, password: string): boolean {
   return verifyPassword(password, ADMIN_PASSWORD_HASH);
 }
 
+/** 已登录管理员再次输入密码校验（删库等高危操作） */
+export function verifyAdminPassword(password: string): boolean {
+  if (!password.trim()) return false;
+  return verifyPassword(password, ADMIN_PASSWORD_HASH);
+}
+
 export function verifyMemberLogin(password: string): boolean {
   return verifyPassword(password, MEMBER_PASSWORD_HASH);
 }

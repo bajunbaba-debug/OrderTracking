@@ -10,6 +10,8 @@ datasource db {
 model ProjectItem {
   id                    String    @id @default(cuid())
   sourceRowNumber       Int?
+  uuid                  String    @default("")
+  lastImportBatchId     String    @default("")
   externalSource      String    @default("")
   externalTaskId      String    @default("")
   externalDetailId    String    @default("")
@@ -49,6 +51,8 @@ model ProjectItem {
   updatedAt             DateTime  @updatedAt
 
   @@index([externalSource, externalTaskId, externalDetailId])
+  @@index([uuid])
+  @@index([lastImportBatchId])
 }
 
 model Dictionary {

@@ -1,5 +1,6 @@
 export interface RawProjectRow {
   sourceRowNumber?: number;
+  uuid: string;
   type: string;
   typeDetail: string;
   contractNo: string;

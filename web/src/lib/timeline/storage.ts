@@ -46,10 +46,6 @@ export function saveTimelineState(state: TimelinePersistedState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-export function resetTimelineState(): void {
-  saveTimelineState(emptyTimelineState());
-}
-
 export function appendLog(
   state: TimelinePersistedState,
   entry: Omit<TimelinePersistedState["operationLogs"][number], "id" | "timestamp" | "operator" | "operatorRole"> & {
