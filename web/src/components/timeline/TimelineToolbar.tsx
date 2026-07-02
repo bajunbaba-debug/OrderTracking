@@ -95,8 +95,8 @@ function CopyImageIcon({ className }: { className?: string }) {
 /** 工具栏统一尺寸 */
 const CONTROL_H = "h-8";
 const TEXT = "text-xs";
-const INPUT =
-  "h-8 w-full min-w-0 rounded border border-slate-300 px-2.5 text-xs text-slate-900 placeholder:text-slate-400";
+const SEARCH_INPUT =
+  "h-8 w-[13.33rem] shrink-0 rounded border border-slate-300 px-2.5 text-xs text-slate-900 placeholder:text-slate-400";
 const BTN_PRIMARY = `inline-flex ${CONTROL_H} shrink-0 items-center justify-center rounded px-3 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800`;
 const SELECT = `h-8 rounded border border-slate-300 px-2 text-xs text-slate-900`;
 
@@ -146,6 +146,14 @@ interface Props {
 }
 
 function toggleChipClass(active: boolean): string {
+  return `inline-flex ${CONTROL_H} shrink-0 items-center rounded-full px-2.5 text-xs leading-none ${
+    active
+      ? "bg-slate-900 text-white"
+      : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+  }`;
+}
+
+function ownerChipClass(active: boolean): string {
   return `inline-flex h-6 shrink-0 items-center rounded-full px-2 text-xs leading-none ${
     active
       ? "bg-slate-900 text-white"
@@ -163,13 +171,13 @@ function OwnerSwitcher({
   onFocusOwner: (owner: string | null) => void;
 }) {
   return (
-    <div className="relative min-w-[220px] flex-[999_1_24rem] overflow-visible rounded-md border border-slate-200 bg-slate-50">
+    <div className="relative min-w-0 flex-1 overflow-visible rounded-md border border-slate-200 bg-slate-50">
       <div className="flex h-8 items-center overflow-x-auto overflow-y-visible px-2 [scrollbar-width:thin]">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onFocusOwner(null)}
-            className={toggleChipClass(focusedOwner === null)}
+            className={ownerChipClass(focusedOwner === null)}
           >
             全部概览
           </button>
@@ -178,7 +186,7 @@ function OwnerSwitcher({
               key={m.owner}
               type="button"
               onClick={() => onFocusOwner(m.owner)}
-              className={`relative ${toggleChipClass(focusedOwner === m.owner)}`}
+              className={`relative ${ownerChipClass(focusedOwner === m.owner)}`}
             >
               <DisplayText value={m.owner} />
               {m.riskCount > 0 ? (
@@ -247,54 +255,8 @@ export function TimelineToolbar({
 
   return (
     <div className="mb-3 overflow-visible rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <span className={`${TEXT} text-slate-500`}>订单号搜索</span>
-        <button type="button" onClick={onToggleDelayed} className={toggleChipClass(onlyDelayed)}>
-          延期风险
-        </button>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`${TEXT} shrink-0 text-slate-500`}>状态</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className={SELECT}
-          >
-            <option value="">全部</option>
-            <option value="pending">未处理</option>
-            <option value="in_progress">正在处理</option>
-            <option value="frozen">已冻结</option>
-          </select>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`${TEXT} shrink-0 text-slate-500`}>时间轴</span>
-          <div
-            className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
-          >
-            {ZOOM_LEVELS.map((level) => {
-              const preset = TIMELINE_ZOOM_PRESETS[level];
-              const active = zoomLevel === level;
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => onZoomLevelChange(level)}
-                  title={`每行 ${preset.daysPerRow} 天`}
-                  className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
-                    active
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white hover:text-slate-900"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 overflow-visible">
-        <div ref={searchWrapRef} className="relative flex min-w-[280px] flex-1 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3 overflow-visible">
+        <div ref={searchWrapRef} className="relative inline-flex shrink-0 items-center gap-2">
           <input
             type="search"
             value={searchInput}
@@ -307,22 +269,16 @@ export function TimelineToolbar({
               if (e.key === "Escape") onSearchClose();
             }}
             placeholder="合同号(项目名)/合同号(项目名)/..."
-            className={`${INPUT} min-w-[180px] flex-[1_1_20rem]`}
+            aria-label="订单号搜索"
+            className={SEARCH_INPUT}
           />
           <button type="button" onClick={onSearchSubmit} className={BTN_PRIMARY}>
             搜索
           </button>
-          {showOwnerSwitcher ? (
-            <OwnerSwitcher
-              members={members}
-              focusedOwner={focusedOwner}
-              onFocusOwner={onFocusOwner}
-            />
-          ) : null}
           {searchOpen && searchResults.length > 0 ? (
             <>
               <div className="fixed inset-0 z-30" onClick={onSearchClose} aria-hidden="true" />
-              <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 min-w-[640px] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+              <div className="absolute left-0 top-full z-40 mt-1 max-h-72 w-max min-w-[640px] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500">
                   <span>共 {searchResults.length} 条处理项次</span>
                   <button
@@ -384,11 +340,65 @@ export function TimelineToolbar({
           {searchOpen && searchResults.length === 0 ? (
             <>
               <div className="fixed inset-0 z-30" onClick={onSearchClose} aria-hidden="true" />
-              <div className="absolute left-0 right-0 top-full z-40 mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-xl">
+              <div className="absolute left-0 top-full z-40 mt-1 w-max min-w-[12rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-xl">
                 未找到匹配的处理项次
               </div>
             </>
           ) : null}
+        </div>
+
+        <button type="button" onClick={onToggleDelayed} className={toggleChipClass(onlyDelayed)}>
+          延期风险
+        </button>
+
+        {showOwnerSwitcher ? (
+          <OwnerSwitcher
+            members={members}
+            focusedOwner={focusedOwner}
+            onFocusOwner={onFocusOwner}
+          />
+        ) : null}
+
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`${TEXT} shrink-0 text-slate-500`}>状态</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => onStatusFilterChange(e.target.value)}
+              className={SELECT}
+            >
+              <option value="">全部</option>
+              <option value="pending">未处理</option>
+              <option value="in_progress">正在处理</option>
+              <option value="frozen">已冻结</option>
+            </select>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className={`${TEXT} shrink-0 text-slate-500`}>时间轴</span>
+            <div
+              className={`inline-flex ${CONTROL_H} items-center rounded-md border border-slate-300 bg-slate-50 p-0.5`}
+            >
+              {ZOOM_LEVELS.map((level) => {
+                const preset = TIMELINE_ZOOM_PRESETS[level];
+                const active = zoomLevel === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => onZoomLevelChange(level)}
+                    title={`每行 ${preset.daysPerRow} 天`}
+                    className={`inline-flex h-7 items-center rounded px-2.5 text-xs transition-colors ${
+                      active
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
